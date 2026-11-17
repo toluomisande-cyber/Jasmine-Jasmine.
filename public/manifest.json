@@ -1,0 +1,16 @@
+{
+  "name": "Jasmine",
+  "short_name": "Jasmine",
+  "description": "Jasmine Personal Assistant",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFF",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
