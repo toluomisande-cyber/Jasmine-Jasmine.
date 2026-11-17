@@ -490,25 +490,6 @@ export function useJustinaVoice(active: boolean) {
         }
         sessionRef.current = session;
 
-        // Immediately greet the user so the live voice session feels alive right away
-        try {
-          session.sendClientContent({
-            turns: [
-              {
-                role: 'user',
-                parts: [
-                  {
-                    text: 'Greet the user warmly in one short natural spoken sentence as Jasmine and ask how you can help.',
-                  },
-                ],
-              },
-            ],
-            turnComplete: true,
-          });
-        } catch {
-          // ignore if session closed
-        }
-
         // 4. Stream 16kHz Int16 PCM mic audio into Gemini Live
         const processor = captureCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
