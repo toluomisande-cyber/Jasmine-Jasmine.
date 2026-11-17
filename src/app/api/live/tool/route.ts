@@ -17,8 +17,11 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, args = {}, memories = [] } = await req.json();
     const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const { name, args = {}, memories = [] } = await req.json();
     const memoryList = Array.isArray(memories)
       ? memories.filter((m: unknown): m is string => typeof m === 'string' && m.trim().length > 0)
       : [];

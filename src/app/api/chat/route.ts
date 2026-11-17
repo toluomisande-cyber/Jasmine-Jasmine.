@@ -26,8 +26,8 @@ const MODEL_ALIAS: Record<string, string> = {
 };
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'gemini-3.5-flash-lite': ['gemini-3.8-flash', 'gemini-4-hydrogen'],
-  'gemini-4-hydrogen': ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
+  'gemini-3.5-flash-lite': ['gemini-4-hydrogen', 'gemini-3.8-flash'],
+  'gemini-4-hydrogen': ['gemini-3.5-flash-lite', 'gemini-3.8-flash'],
   'gemini-3.8-flash': ['gemini-3.5-flash-lite', 'gemini-4-hydrogen'],
 };
 
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { model, contents, systemInstruction, voiceMode, memories, profile, clientTimeContext } = body;
+    const { model, contents, systemInstruction, voiceMode, memories, profile } = body;
 
     if (!contents || !Array.isArray(contents) || contents.length === 0) {
       return NextResponse.json(
@@ -304,13 +304,16 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
+    }
     const requestedModel = voiceMode
       ? 'gemini-3.5-flash-lite'
       : model || 'gemini-3.5-flash-lite';
     const primaryModel = MODEL_ALIAS[requestedModel] || requestedModel;
     const candidates = voiceMode
       ? ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
-      : [primaryModel, ...(FALLBACK_CHAIN[primaryModel] || ['gemini-3.5-flash-lite', 'gemini-3.8-flash'])];
+      : [primaryModel, ...(FALLBACK_CHAIN[primaryModel] || ['gemini-3.5-flash-lite'])];
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -343,26 +346,13 @@ export async function POST(req: NextRequest) {
     const memorySection =
       memoryList.length > 0
         ? `\n\n## Remembered facts about the user (use naturally when relevant):\n${memoryList
-          .map((m) => `- ${m.trim()}`)
-          .join('\n')}`
+            .map((m) => `- ${m.trim()}`)
+            .join('\n')}`
         : '';
 
-    const now = new Date();
-    const fallbackLocal = now.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZoneName: 'short',
-    });
-    const timeSection = `\n\n## Current date & time (authoritative — always use this for today, tomorrow, dates, and scheduling):\n- Local date & time: ${clientTimeContext?.localFormatted || fallbackLocal}\n- Timezone: ${clientTimeContext?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}\n- ISO timestamp: ${clientTimeContext?.iso || now.toISOString()}`;
-
     const effectiveSystemInstruction = voiceMode
-      ? `${baseInstruction}${timeSection}${profileSection}${memorySection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
-      : `${baseInstruction}${timeSection}${profileSection}${memorySection}`;
+      ? `${baseInstruction}${profileSection}${memorySection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
+      : `${baseInstruction}${profileSection}${memorySection}`;
 
     const encoder = new TextEncoder();
 
@@ -399,7 +389,7 @@ export async function POST(req: NextRequest) {
                             status: 503,
                           })
                         ),
-                      12000
+                      6000
                     )
                   ),
                 ]);
@@ -416,54 +406,6 @@ export async function POST(req: NextRequest) {
             }
 
             if (!responseStream) {
-              const openRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
-              if (openRouterKey) {
-                const orModels = ['openrouter/free', 'openai/gpt-4o-mini', 'google/gemini-2.5-flash'];
-                const orMessages: any[] = [
-                  { role: 'system', content: effectiveSystemInstruction },
-                  ...conversationContents.map((c) => ({
-                    role: c.role === 'model' ? 'assistant' : 'user',
-                    content: (c.parts || [])
-                      .map((p: any) => p.text || (p.functionResponse ? JSON.stringify(p.functionResponse.response) : ''))
-                      .filter(Boolean)
-                      .join('\n') || ' ',
-                  })),
-                ];
-
-                for (const orModel of orModels) {
-                  try {
-                    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${openRouterKey}`,
-                      },
-                      body: JSON.stringify({
-                        model: orModel,
-                        messages: orMessages,
-                        ...(voiceMode ? { max_tokens: 220, temperature: 0.7 } : {}),
-                      }),
-                      signal: AbortSignal.timeout(15000),
-                    });
-
-                    if (orRes.ok) {
-                      const orData = await orRes.json();
-                      const text = orData?.choices?.[0]?.message?.content;
-                      if (text) {
-                        sendEvent({ type: 'chunk', text });
-                        sendEvent({ type: 'done' });
-                        controller.close();
-                        return;
-                      }
-                    } else {
-                      console.warn(`[POST /api/chat] OpenRouter ${orModel} returned ${orRes.status}`);
-                    }
-                  } catch (orErr) {
-                    console.warn(`[POST /api/chat] OpenRouter ${orModel} failed:`, orErr);
-                  }
-                }
-              }
-
               const cleanErr = extractReadableErrorMessage(lastError);
               sendEvent({ type: 'error', error: cleanErr.message });
               controller.close();
