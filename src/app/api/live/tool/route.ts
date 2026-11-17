@@ -11,6 +11,7 @@ import {
   listTasks,
   createTask,
 } from '@/lib/tools/workspaceTools';
+import { sendPushNotificationToAll } from '@/lib/pwa/pushStore';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -120,6 +121,12 @@ export async function POST(req: NextRequest) {
         session?.accessToken,
         session?.refreshToken
       );
+    } else if (name === 'schedule_or_send_notification') {
+      result = await sendPushNotificationToAll({
+        title: String(args.title || 'Jasmine'),
+        body: String(args.body || ''),
+        url: args.url ? String(args.url) : '/',
+      });
     } else {
       result = { error: `Unknown tool: ${name}` };
     }

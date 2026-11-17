@@ -10,21 +10,14 @@ import { JustinaVoiceOverlay } from './JustinaVoiceOverlay';
 import { ArtifactCanvas } from './ArtifactCanvas';
 import { ProfileMemoryModal } from './ProfileMemoryModal';
 import { CommandPalette } from './CommandPalette';
+import { registerServiceWorker } from '../lib/pwa/registerPwa';
 
 export function ChatWorkspace() {
   const { initFromStorage } = useChatStore();
 
   useEffect(() => {
     initFromStorage();
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        navigator.serviceWorker.getRegistrations().then((regs) => {
-          regs.forEach((r) => void r.unregister());
-        }).catch(() => {});
-      } else {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
-      }
-    }
+    void registerServiceWorker().catch(() => {});
   }, [initFromStorage]);
 
   return (

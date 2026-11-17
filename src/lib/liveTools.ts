@@ -137,6 +137,19 @@ export const LIVE_TOOL_DECLARATIONS: FunctionDeclaration[] = [
       required: ['title'],
     },
   },
+  {
+    name: 'schedule_or_send_notification',
+    description: "Send a native Web Push notification to the user's installed Jasmine PWA / browser.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Notification title.' },
+        body: { type: Type.STRING, description: 'Notification message body.' },
+        url: { type: Type.STRING, description: 'Optional relative URL.' },
+      },
+      required: ['title', 'body'],
+    },
+  },
 ];
 
 export function getLiveToolLabel(name: string, args: Record<string, any>): string {

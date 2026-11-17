@@ -4,12 +4,15 @@ import { Providers } from '../components/Providers';
 
 export const metadata: Metadata = {
   title: 'Jasmine',
-  description: 'Jasmine Personal Assistant',
-  manifest: '/manifest.json',
+  description: 'Jasmine — Personal AI Assistant',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'Jasmine',
+  },
+  icons: {
+    icon: '/icons/icon-192x192.png',
+    apple: '/apple-touch-icon.png',
   },
 };
 
@@ -18,6 +21,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
+  themeColor: '#09090b',
 };
 
 export default function RootLayout({

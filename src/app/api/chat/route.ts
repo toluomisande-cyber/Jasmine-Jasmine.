@@ -12,6 +12,7 @@ import {
   listTasks,
   createTask,
 } from '@/lib/tools/workspaceTools';
+import { sendPushNotificationToAll } from '@/lib/pwa/pushStore';
 import type { GroundingSource, UserProfile } from '@/types/chat';
 
 export const runtime = 'nodejs';
@@ -221,6 +222,20 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
         dueIso: { type: Type.STRING, description: 'Optional RFC 3339 due date.' },
       },
       required: ['title'],
+    },
+  },
+  {
+    name: 'schedule_or_send_notification',
+    description:
+      'Send a native Web Push notification to the user’s installed Jasmine PWA / browser.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: 'Notification title.' },
+        body: { type: Type.STRING, description: 'Notification message body.' },
+        url: { type: Type.STRING, description: 'Optional relative URL to open when clicked (defaults to /).' },
+      },
+      required: ['title', 'body'],
     },
   },
 ];
@@ -760,6 +775,26 @@ export async function POST(req: NextRequest) {
                   (taskCreated as any)?.error || title
                 );
                 toolResult = taskCreated;
+              } else if (call.name === 'schedule_or_send_notification') {
+                const title = String(call.args.title || 'Jasmine');
+                const notifBody = String(call.args.body || '');
+                const url = call.args.url ? String(call.args.url) : '/';
+                sendEvent({ type: 'tool_status', status: `Sending push notification "${title}"...` });
+                emitToolStep('thought', 'running', 'Sending push notification', title);
+                const pushRes = await sendPushNotificationToAll({
+                  title,
+                  body: notifBody,
+                  url,
+                });
+                emitToolStep(
+                  'thought',
+                  pushRes.error && pushRes.sent === 0 ? 'error' : 'done',
+                  'Sent push notification',
+                  pushRes.error && pushRes.sent === 0
+                    ? pushRes.error
+                    : `Delivered to ${pushRes.sent} device(s)`
+                );
+                toolResult = pushRes;
               } else if (call.name === 'prepare_email') {
                 const to = String(call.args.to || '');
                 const subject = String(call.args.subject || '');
