@@ -43,7 +43,18 @@ export function TopBar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isGmailConnected = Boolean(session?.accessToken);
+  const isWorkspaceConnected = Boolean(session?.hasWorkspaceAccess);
+  const workspaceScopes = [
+    'openid',
+    'email',
+    'profile',
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/tasks',
+  ].join(' ');
 
   return (
     <header className="h-[52px] shrink-0 bg-[var(--j-bg)]/90 backdrop-blur-md border-b border-[var(--j-border)] px-3 sm:px-4 flex items-center justify-between gap-2 select-none z-30">
@@ -87,31 +98,46 @@ export function TopBar() {
           <span className="hidden md:inline">Memory</span>
         </button>
         {sessionStatus !== 'loading' && (
-          isGmailConnected ? (
-            <div className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-[var(--j-surface)] border border-[var(--j-border)] text-xs text-[var(--j-text)]">
-              <Mail className="w-3.5 h-3.5 text-[var(--j-accent)] shrink-0" />
-              <span className="hidden sm:inline truncate max-w-[140px]">
-                {session?.user?.email || 'Gmail connected'}
-              </span>
+          <div className="flex items-center gap-1.5">
+            {!isWorkspaceConnected && (
               <button
-                onClick={() => signOut()}
-                title="Disconnect Gmail"
-                aria-label="Disconnect Gmail"
-                className="p-0.5 rounded text-[var(--j-text-muted)] hover:text-[var(--j-text)] transition-colors"
+                onClick={() =>
+                  signIn(
+                    'google',
+                    { callbackUrl: '/' },
+                    {
+                      scope: workspaceScopes,
+                      access_type: 'offline',
+                      prompt: 'consent',
+                    }
+                  )
+                }
+                title="Connect Gmail, Calendar, Drive & Tasks"
+                className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-[var(--j-surface)] hover:bg-[var(--j-surface-hover)] text-[var(--j-text)] text-xs font-medium border border-[var(--j-border)] transition-colors"
               >
-                <LogOut className="w-3 h-3" />
+                <Mail className="w-3.5 h-3.5 text-[var(--j-accent)]" />
+                <span className="hidden sm:inline">Connect Workspace</span>
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => signIn('google')}
-              title="Connect Gmail"
-              className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-[var(--j-surface)] hover:bg-[var(--j-surface-hover)] text-[var(--j-text)] text-xs font-medium border border-[var(--j-border)] transition-colors"
-            >
-              <Mail className="w-3.5 h-3.5 text-[var(--j-accent)]" />
-              <span className="hidden sm:inline">Connect Gmail</span>
-            </button>
-          )
+            )}
+            {session?.user && (
+              <div className="flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg bg-[var(--j-surface)] border border-[var(--j-border)] text-xs text-[var(--j-text)]">
+                {isWorkspaceConnected && (
+                  <Mail className="w-3.5 h-3.5 text-[var(--j-accent)] shrink-0" />
+                )}
+                <span className="hidden sm:inline truncate max-w-[140px]">
+                  {session.user.email || session.user.name || 'Signed in'}
+                </span>
+                <button
+                  onClick={() => signOut({ callbackUrl: '/login' })}
+                  title="Sign out"
+                  aria-label="Sign out"
+                  className="p-0.5 rounded text-[var(--j-text-muted)] hover:text-[var(--j-text)] transition-colors"
+                >
+                  <LogOut className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         <button

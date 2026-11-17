@@ -5,6 +5,7 @@ declare module 'next-auth' {
   interface Session {
     accessToken?: string;
     refreshToken?: string;
+    hasWorkspaceAccess?: boolean;
     error?: string;
   }
 }
@@ -14,6 +15,7 @@ declare module 'next-auth/jwt' {
     accessToken?: string;
     refreshToken?: string;
     accessTokenExpires?: number;
+    hasWorkspaceAccess?: boolean;
     error?: string;
   }
 }
@@ -66,19 +68,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       authorization: {
         params: {
-          scope: [
-            'openid',
-            'email',
-            'profile',
-            'https://www.googleapis.com/auth/gmail.readonly',
-            'https://www.googleapis.com/auth/gmail.compose',
-            'https://www.googleapis.com/auth/gmail.send',
-            'https://www.googleapis.com/auth/calendar.events',
-            'https://www.googleapis.com/auth/drive.readonly',
-            'https://www.googleapis.com/auth/tasks',
-          ].join(' '),
-          access_type: 'offline',
-          prompt: 'consent',
+          scope: 'openid email profile',
+          prompt: 'select_account',
         },
       },
     }),
@@ -98,6 +89,7 @@ export const authOptions: NextAuthOptions = {
           accessToken: account.access_token,
           refreshToken: account.refresh_token ?? token.refreshToken,
           accessTokenExpires: account.expires_at ? account.expires_at * 1000 : Date.now() + 3600 * 1000,
+          hasWorkspaceAccess: Boolean(account.scope?.includes('gmail')),
         };
       }
 
@@ -110,6 +102,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
+      session.hasWorkspaceAccess = Boolean(token.hasWorkspaceAccess);
       session.error = token.error;
       return session;
     },

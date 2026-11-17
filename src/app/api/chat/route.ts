@@ -26,8 +26,8 @@ const MODEL_ALIAS: Record<string, string> = {
 };
 
 const FALLBACK_CHAIN: Record<string, string[]> = {
-  'gemini-3.5-flash-lite': ['gemini-4-hydrogen', 'gemini-3.8-flash'],
-  'gemini-4-hydrogen': ['gemini-3.5-flash-lite', 'gemini-3.8-flash'],
+  'gemini-3.5-flash-lite': ['gemini-3.8-flash', 'gemini-4-hydrogen'],
+  'gemini-4-hydrogen': ['gemini-3.8-flash', 'gemini-3.5-flash-lite'],
   'gemini-3.8-flash': ['gemini-3.5-flash-lite', 'gemini-4-hydrogen'],
 };
 
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { model, contents, systemInstruction, voiceMode, memories, profile } = body;
+    const { model, contents, systemInstruction, voiceMode, memories, profile, clientTimeContext } = body;
 
     if (!contents || !Array.isArray(contents) || contents.length === 0) {
       return NextResponse.json(
@@ -304,16 +304,13 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized. Please sign in.' }, { status: 401 });
-    }
     const requestedModel = voiceMode
       ? 'gemini-3.5-flash-lite'
       : model || 'gemini-3.5-flash-lite';
     const primaryModel = MODEL_ALIAS[requestedModel] || requestedModel;
     const candidates = voiceMode
       ? ['gemini-3.5-flash-lite', 'gemini-3.8-flash']
-      : [primaryModel, ...(FALLBACK_CHAIN[primaryModel] || ['gemini-3.5-flash-lite'])];
+      : [primaryModel, ...(FALLBACK_CHAIN[primaryModel] || ['gemini-3.5-flash-lite', 'gemini-3.8-flash'])];
 
     const ai = new GoogleGenAI({ apiKey });
 
@@ -346,13 +343,26 @@ export async function POST(req: NextRequest) {
     const memorySection =
       memoryList.length > 0
         ? `\n\n## Remembered facts about the user (use naturally when relevant):\n${memoryList
-            .map((m) => `- ${m.trim()}`)
-            .join('\n')}`
+          .map((m) => `- ${m.trim()}`)
+          .join('\n')}`
         : '';
 
+    const now = new Date();
+    const fallbackLocal = now.toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZoneName: 'short',
+    });
+    const timeSection = `\n\n## Current date & time (authoritative — always use this for today, tomorrow, dates, and scheduling):\n- Local date & time: ${clientTimeContext?.localFormatted || fallbackLocal}\n- Timezone: ${clientTimeContext?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}\n- ISO timestamp: ${clientTimeContext?.iso || now.toISOString()}`;
+
     const effectiveSystemInstruction = voiceMode
-      ? `${baseInstruction}${profileSection}${memorySection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
-      : `${baseInstruction}${profileSection}${memorySection}`;
+      ? `${baseInstruction}${timeSection}${profileSection}${memorySection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
+      : `${baseInstruction}${timeSection}${profileSection}${memorySection}`;
 
     const encoder = new TextEncoder();
 
@@ -389,7 +399,7 @@ export async function POST(req: NextRequest) {
                             status: 503,
                           })
                         ),
-                      6000
+                      12000
                     )
                   ),
                 ]);
@@ -406,6 +416,54 @@ export async function POST(req: NextRequest) {
             }
 
             if (!responseStream) {
+              const openRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
+              if (openRouterKey) {
+                const orModels = ['openrouter/free', 'openai/gpt-4o-mini', 'google/gemini-2.5-flash'];
+                const orMessages: any[] = [
+                  { role: 'system', content: effectiveSystemInstruction },
+                  ...conversationContents.map((c) => ({
+                    role: c.role === 'model' ? 'assistant' : 'user',
+                    content: (c.parts || [])
+                      .map((p: any) => p.text || (p.functionResponse ? JSON.stringify(p.functionResponse.response) : ''))
+                      .filter(Boolean)
+                      .join('\n') || ' ',
+                  })),
+                ];
+
+                for (const orModel of orModels) {
+                  try {
+                    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${openRouterKey}`,
+                      },
+                      body: JSON.stringify({
+                        model: orModel,
+                        messages: orMessages,
+                        ...(voiceMode ? { max_tokens: 220, temperature: 0.7 } : {}),
+                      }),
+                      signal: AbortSignal.timeout(15000),
+                    });
+
+                    if (orRes.ok) {
+                      const orData = await orRes.json();
+                      const text = orData?.choices?.[0]?.message?.content;
+                      if (text) {
+                        sendEvent({ type: 'chunk', text });
+                        sendEvent({ type: 'done' });
+                        controller.close();
+                        return;
+                      }
+                    } else {
+                      console.warn(`[POST /api/chat] OpenRouter ${orModel} returned ${orRes.status}`);
+                    }
+                  } catch (orErr) {
+                    console.warn(`[POST /api/chat] OpenRouter ${orModel} failed:`, orErr);
+                  }
+                }
+              }
+
               const cleanErr = extractReadableErrorMessage(lastError);
               sendEvent({ type: 'error', error: cleanErr.message });
               controller.close();
@@ -422,6 +480,10 @@ export async function POST(req: NextRequest) {
                 for (const part of rawParts) {
                   // Preserve exact part object including thoughtSignature for Gemini 3+/4+ tool calls
                   modelParts.push(part);
+
+                  if (part.thought && part.text) {
+                    sendEvent({ type: 'thought_chunk', text: part.text });
+                  }
 
                   if (part.text && !part.thought) {
                     sendEvent({ type: 'chunk', text: part.text });
@@ -481,13 +543,39 @@ export async function POST(req: NextRequest) {
             });
 
             const responseParts: any[] = [];
-            for (const call of pendingCalls) {
+            for (let callIdx = 0; callIdx < pendingCalls.length; callIdx++) {
+              const call = pendingCalls[callIdx];
+              const stepId = `tool-${step}-${callIdx}-${call.name}`;
+              const toolStart = Date.now();
               let toolResult: unknown;
 
+              const emitToolStep = (
+                kind: string,
+                status: 'running' | 'done' | 'error',
+                title: string,
+                detail?: string,
+                content?: string
+              ) => {
+                sendEvent({
+                  type: 'tool_step',
+                  step: {
+                    id: stepId,
+                    kind,
+                    status,
+                    title,
+                    detail,
+                    content,
+                    duration: status === 'running' ? undefined : Date.now() - toolStart,
+                  },
+                });
+              };
+
               if (call.name === 'google_search') {
-                sendEvent({ type: 'tool_status', status: 'Searching the web...' });
+                const q = String(call.args.query || '');
+                sendEvent({ type: 'tool_status', status: `Searching the web for "${q}"...` });
+                emitToolStep('search', 'running', 'Searching the web via Tavily', `Query: "${q}"`);
                 const searchRes = await tavilySearch({
-                  query: String(call.args.query || ''),
+                  query: q,
                   maxResults: call.args.maxResults ? Number(call.args.maxResults) : 5,
                   searchDepth: call.args.searchDepth === 'advanced' ? 'advanced' : 'basic',
                 });
@@ -505,24 +593,59 @@ export async function POST(req: NextRequest) {
                     sources: Array.from(collectedSources.values()),
                   });
                 }
+                emitToolStep(
+                  'search',
+                  searchRes.error ? 'error' : 'done',
+                  'Searched the web via Tavily',
+                  searchRes.error
+                    ? searchRes.error
+                    : `"${q}" · ${searchRes.results.length} sources found`,
+                  searchRes.results
+                    .slice(0, 3)
+                    .map((r) => r.title)
+                    .join(' · ') || undefined
+                );
                 toolResult = searchRes;
               } else if (call.name === 'browse_url') {
-                sendEvent({ type: 'tool_status', status: 'Reading webpage...' });
-                toolResult = await browseUrl(String(call.args.url || ''));
+                const targetUrl = String(call.args.url || '');
+                sendEvent({ type: 'tool_status', status: `Reading ${targetUrl}...` });
+                emitToolStep('globe', 'running', 'Reading webpage', targetUrl);
+                const pageRes = await browseUrl(targetUrl);
+                emitToolStep(
+                  'globe',
+                  (pageRes as any)?.error ? 'error' : 'done',
+                  'Read webpage',
+                  (pageRes as any)?.title || targetUrl
+                );
+                toolResult = pageRes;
               } else if (call.name === 'search_gmail') {
-                sendEvent({ type: 'tool_status', status: 'Searching Gmail...' });
-                toolResult = await searchGmail(
+                const q = String(call.args.query || '');
+                sendEvent({ type: 'tool_status', status: `Checking Gmail for "${q}"...` });
+                emitToolStep('mail', 'running', 'Checking Gmail inbox', `Query: "${q}"`);
+                const gmailRes = await searchGmail(
                   {
-                    query: String(call.args.query || ''),
+                    query: q,
                     maxResults: call.args.maxResults ? Number(call.args.maxResults) : 5,
                   },
                   session?.accessToken,
                   session?.refreshToken
                 );
+                const errMsg = (gmailRes as any)?.error;
+                const msgCount = Array.isArray((gmailRes as any)?.messages)
+                  ? (gmailRes as any).messages.length
+                  : 0;
+                emitToolStep(
+                  'mail',
+                  errMsg ? 'error' : 'done',
+                  'Checked Gmail inbox',
+                  errMsg ? errMsg : `"${q}" · ${msgCount} messages`
+                );
+                toolResult = gmailRes;
               } else if (call.name === 'save_memory') {
                 const fact = String(call.args.fact || '').trim();
                 if (fact) {
-                  sendEvent({ type: 'tool_status', status: 'Remembering...' });
+                  sendEvent({ type: 'tool_status', status: 'Saving to personal memory...' });
+                  emitToolStep('memory', 'done', 'Saved to personal memory', fact);
                   sendEvent({ type: 'memory_saved', fact });
                   toolResult = { saved: true, fact };
                 } else {
@@ -531,10 +654,12 @@ export async function POST(req: NextRequest) {
               } else if (call.name === 'search_memory') {
                 const q = String(call.args.query || '').toLowerCase().trim();
                 const matches = memoryList.filter((m) => m.toLowerCase().includes(q));
+                emitToolStep('memory', 'done', 'Checked personal memory', `"${q}" · ${matches.length} matches`);
                 toolResult = { count: matches.length, matches };
               } else if (call.name === 'list_calendar_events') {
                 sendEvent({ type: 'tool_status', status: 'Checking Google Calendar...' });
-                toolResult = await listCalendarEvents(
+                emitToolStep('calendar', 'running', 'Checking Google Calendar', 'Fetching upcoming events');
+                const calRes = await listCalendarEvents(
                   {
                     timeMin: call.args.timeMin ? String(call.args.timeMin) : undefined,
                     timeMax: call.args.timeMax ? String(call.args.timeMax) : undefined,
@@ -543,11 +668,21 @@ export async function POST(req: NextRequest) {
                   session?.accessToken,
                   session?.refreshToken
                 );
+                const errMsg = (calRes as any)?.error;
+                emitToolStep(
+                  'calendar',
+                  errMsg ? 'error' : 'done',
+                  'Checked Google Calendar',
+                  errMsg ? errMsg : `${(calRes as any)?.count ?? 0} events found`
+                );
+                toolResult = calRes;
               } else if (call.name === 'create_calendar_event') {
-                sendEvent({ type: 'tool_status', status: 'Creating calendar event...' });
-                toolResult = await createCalendarEvent(
+                const summary = String(call.args.summary || '');
+                sendEvent({ type: 'tool_status', status: `Scheduling "${summary}"...` });
+                emitToolStep('calendar', 'running', 'Creating Google Calendar event', summary);
+                const createdCal = await createCalendarEvent(
                   {
-                    summary: String(call.args.summary || ''),
+                    summary,
                     startIso: String(call.args.startIso || ''),
                     endIso: String(call.args.endIso || ''),
                     description: call.args.description ? String(call.args.description) : undefined,
@@ -559,19 +694,37 @@ export async function POST(req: NextRequest) {
                   session?.accessToken,
                   session?.refreshToken
                 );
+                emitToolStep(
+                  'calendar',
+                  (createdCal as any)?.error ? 'error' : 'done',
+                  'Created Google Calendar event',
+                  (createdCal as any)?.error || summary
+                );
+                toolResult = createdCal;
               } else if (call.name === 'search_drive_files') {
-                sendEvent({ type: 'tool_status', status: 'Searching Google Drive...' });
-                toolResult = await searchDriveFiles(
+                const q = String(call.args.query || '');
+                sendEvent({ type: 'tool_status', status: `Searching Google Drive for "${q}"...` });
+                emitToolStep('drive', 'running', 'Searching Google Drive', `Query: "${q}"`);
+                const driveRes = await searchDriveFiles(
                   {
-                    query: String(call.args.query || ''),
+                    query: q,
                     maxResults: call.args.maxResults ? Number(call.args.maxResults) : undefined,
                   },
                   session?.accessToken,
                   session?.refreshToken
                 );
+                const errMsg = (driveRes as any)?.error;
+                emitToolStep(
+                  'drive',
+                  errMsg ? 'error' : 'done',
+                  'Searched Google Drive',
+                  errMsg ? errMsg : `"${q}" · ${(driveRes as any)?.count ?? 0} files`
+                );
+                toolResult = driveRes;
               } else if (call.name === 'list_tasks') {
                 sendEvent({ type: 'tool_status', status: 'Checking Google Tasks...' });
-                toolResult = await listTasks(
+                emitToolStep('read', 'running', 'Checking Google Tasks', 'Loading your to-do list');
+                const tasksRes = await listTasks(
                   {
                     maxResults: call.args.maxResults ? Number(call.args.maxResults) : undefined,
                     showCompleted: Boolean(call.args.showCompleted),
@@ -579,22 +732,42 @@ export async function POST(req: NextRequest) {
                   session?.accessToken,
                   session?.refreshToken
                 );
+                const errMsg = (tasksRes as any)?.error;
+                emitToolStep(
+                  'read',
+                  errMsg ? 'error' : 'done',
+                  'Checked Google Tasks',
+                  errMsg ? errMsg : `${(tasksRes as any)?.count ?? 0} tasks`
+                );
+                toolResult = tasksRes;
               } else if (call.name === 'create_task') {
-                sendEvent({ type: 'tool_status', status: 'Adding Google Task...' });
-                toolResult = await createTask(
+                const title = String(call.args.title || '');
+                sendEvent({ type: 'tool_status', status: `Adding task "${title}"...` });
+                emitToolStep('write', 'running', 'Adding Google Task', title);
+                const taskCreated = await createTask(
                   {
-                    title: String(call.args.title || ''),
+                    title,
                     notes: call.args.notes ? String(call.args.notes) : undefined,
                     dueIso: call.args.dueIso ? String(call.args.dueIso) : undefined,
                   },
                   session?.accessToken,
                   session?.refreshToken
                 );
+                emitToolStep(
+                  'write',
+                  (taskCreated as any)?.error ? 'error' : 'done',
+                  'Added Google Task',
+                  (taskCreated as any)?.error || title
+                );
+                toolResult = taskCreated;
               } else if (call.name === 'prepare_email') {
-                sendEvent({ type: 'tool_status', status: 'Preparing email draft...' });
+                const to = String(call.args.to || '');
+                const subject = String(call.args.subject || '');
+                sendEvent({ type: 'tool_status', status: `Drafting email to ${to}...` });
+                emitToolStep('mail', 'done', 'Prepared email draft', `To: ${to} · ${subject}`);
                 const action = prepareEmail({
-                  to: String(call.args.to || ''),
-                  subject: String(call.args.subject || ''),
+                  to,
+                  subject,
                   body: String(call.args.body || ''),
                 });
                 sendEvent({ type: 'pending_action', action });

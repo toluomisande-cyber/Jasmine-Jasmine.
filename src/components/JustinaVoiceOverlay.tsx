@@ -63,7 +63,7 @@ export function JustinaVoiceOverlay() {
     return () => window.clearInterval(timer);
   }, [voiceModeOpen]);
 
-  // Spacebar barge-in / interrupt while Justina is speaking, Esc to close
+  // Spacebar barge-in / interrupt while Jasmine is speaking, Esc to close
   useEffect(() => {
     if (!voiceModeOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -80,7 +80,6 @@ export function JustinaVoiceOverlay() {
 
   if (!voiceModeOpen) return null;
 
-  // Check if the latest assistant message in the active thread has a pending email draft
   const threadMessages = activeThreadId ? messagesByThread[activeThreadId] || [] : [];
   const latestMsg = threadMessages[threadMessages.length - 1];
   const pendingEmail =
@@ -180,10 +179,11 @@ export function JustinaVoiceOverlay() {
             onClick={() => setShowTranscript((prev) => !prev)}
             aria-label={showTranscript ? 'Hide transcript' : 'Show transcript'}
             aria-pressed={showTranscript}
-            className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-[13px] font-medium transition-colors duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${showTranscript
-              ? 'bg-[#1a1e28] border-[#eef0f5]/[0.16] text-[#eef0f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
-              : 'bg-[#11141c] border-[#eef0f5]/[0.08] text-[#a3a9b8] hover:bg-[#1a1e28] hover:text-[#eef0f5]'
-              }`}
+            className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-[13px] font-medium transition-colors duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${
+              showTranscript
+                ? 'bg-[#1a1e28] border-[#eef0f5]/[0.16] text-[#eef0f5] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]'
+                : 'bg-[#11141c] border-[#eef0f5]/[0.08] text-[#a3a9b8] hover:bg-[#1a1e28] hover:text-[#eef0f5]'
+            }`}
           >
             <Captions className="w-4 h-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">Transcript</span>
@@ -191,7 +191,7 @@ export function JustinaVoiceOverlay() {
         </div>
       </header>
 
-      {/* Center Stage: Precision Acoustic Dial + Status + Optional Email Draft */}
+      {/* Center Stage: Glowing Voice Orb + Status + Optional Email Draft */}
       <main className="flex-1 flex flex-col items-center justify-center gap-6 max-w-lg w-full mx-auto py-6">
         {errorMessage ? (
           <div className="w-full rounded-2xl bg-[#11141c] border border-[#e5484d]/30 p-6 text-center space-y-2">
@@ -213,14 +213,15 @@ export function JustinaVoiceOverlay() {
             {/* Outer Ambient Glow Halo */}
             <span
               style={{ transform: `scale(${orbScale * 1.18})` }}
-              className={`absolute inset-0 rounded-full blur-2xl transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${orbState === 'thinking'
-                ? 'bg-amber-500/35'
-                : orbState === 'speaking'
-                  ? 'bg-gradient-to-tr from-emerald-500/40 to-violet-500/40'
-                  : muted
-                    ? 'bg-zinc-600/15'
-                    : 'bg-[#2563EB]/35'
-                }`}
+              className={`absolute inset-0 rounded-full blur-2xl transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                orbState === 'thinking'
+                  ? 'bg-amber-500/35'
+                  : orbState === 'speaking'
+                    ? 'bg-gradient-to-tr from-emerald-500/40 to-violet-500/40'
+                    : muted
+                      ? 'bg-zinc-600/15'
+                      : 'bg-[#2563EB]/35'
+              }`}
             />
 
             {/* Spinning Ring for Thinking State */}
@@ -236,14 +237,15 @@ export function JustinaVoiceOverlay() {
             {/* Core Audio-Reactive Glowing Orb */}
             <div
               style={{ transform: `scale(${orbScale})` }}
-              className={`relative w-32 h-32 sm:w-36 sm:h-36 rounded-full shadow-2xl transition-transform duration-100 ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center border ${orbState === 'thinking'
-                ? 'bg-gradient-to-br from-amber-400 via-amber-600 to-orange-700 border-amber-300/50 shadow-[0_0_48px_rgba(245,158,11,0.45)]'
-                : orbState === 'speaking'
-                  ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-violet-600 border-emerald-200/50 shadow-[0_0_52px_rgba(52,211,153,0.45)]'
-                  : muted
-                    ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 border-zinc-600/50'
-                    : 'bg-gradient-to-br from-[#93C5FD] via-[#2563EB] to-[#1E3A8A] border-[#93C5FD]/50 shadow-[0_0_48px_rgba(37,99,235,0.5)]'
-                }`}
+              className={`relative w-32 h-32 sm:w-36 sm:h-36 rounded-full shadow-2xl transition-transform duration-100 ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center border ${
+                orbState === 'thinking'
+                  ? 'bg-gradient-to-br from-amber-400 via-amber-600 to-orange-700 border-amber-300/50 shadow-[0_0_48px_rgba(245,158,11,0.45)]'
+                  : orbState === 'speaking'
+                    ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-violet-600 border-emerald-200/50 shadow-[0_0_52px_rgba(52,211,153,0.45)]'
+                    : muted
+                      ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 border-zinc-600/50'
+                      : 'bg-gradient-to-br from-[#93C5FD] via-[#2563EB] to-[#1E3A8A] border-[#93C5FD]/50 shadow-[0_0_48px_rgba(37,99,235,0.5)]'
+              }`}
             >
               <div className="w-14 h-14 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20">
                 {orbState === 'thinking' ? (
@@ -365,10 +367,11 @@ export function JustinaVoiceOverlay() {
               type="button"
               onClick={toggleMute}
               aria-label={muted ? 'Unmute microphone' : 'Mute microphone'}
-              className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-medium transition-colors duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${muted
-                ? 'bg-[#e5484d]/15 border border-[#e5484d]/30 text-[#eef0f5]'
-                : 'bg-[#1a1e28] hover:bg-[#232836] border border-[#eef0f5]/[0.08] text-[#eef0f5]'
-                }`}
+              className={`inline-flex items-center gap-2 h-10 px-4 rounded-xl text-[13px] font-medium transition-colors duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${
+                muted
+                  ? 'bg-[#e5484d]/15 border border-[#e5484d]/30 text-[#eef0f5]'
+                  : 'bg-[#1a1e28] hover:bg-[#232836] border border-[#eef0f5]/[0.08] text-[#eef0f5]'
+              }`}
             >
               {muted ? (
                 <MicOff className="w-4 h-4 text-[#e5484d]" strokeWidth={1.5} />
