@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 const HEYGEN_FREE_MODEL = 'heygen/heygen-voice-1-turbo:free';
 const HEYGEN_PAID_MODEL = 'heygen/heygen-voice-1-turbo';
 const DEFAULT_HEYGEN_VOICE = 'sabrina';
+let freeCooldownUntil = 0;
 
 function wrapPcmInWavHeader(
   pcmBuffer: Buffer,
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
     const chosenVoice =
       typeof voice === 'string' && voice.trim() ? voice.trim() : DEFAULT_HEYGEN_VOICE;
 
+    const useFreeFirst = Date.now() > freeCooldownUntil;
+    const primaryModel = useFreeFirst ? HEYGEN_FREE_MODEL : HEYGEN_PAID_MODEL;
+
     let res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
       method: 'POST',
       headers: {
@@ -69,14 +73,15 @@ export async function POST(req: NextRequest) {
         'X-Title': 'Jasmine Assistant',
       },
       body: JSON.stringify({
-        model: HEYGEN_FREE_MODEL,
+        model: primaryModel,
         input: cleanedText,
         voice: chosenVoice,
       }),
     });
 
-    if (!res.ok) {
-      console.warn(`[POST /api/tts] ${HEYGEN_FREE_MODEL} returned ${res.status}, retrying ${HEYGEN_PAID_MODEL}...`);
+    if (!res.ok && primaryModel === HEYGEN_FREE_MODEL) {
+      freeCooldownUntil = Date.now() + 60_000;
+      console.warn(`[POST /api/tts] ${HEYGEN_FREE_MODEL} returned ${res.status}, switching to ${HEYGEN_PAID_MODEL} for 60s...`);
       res = await fetch('https://openrouter.ai/api/v1/audio/speech', {
         method: 'POST',
         headers: {

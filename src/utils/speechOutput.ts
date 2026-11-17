@@ -278,10 +278,10 @@ export async function speakTextAloud(
   const myId = ++activeSpeechId;
   callbacks?.onStart?.();
 
-  // Primary: HeyGen Voice Turbo (free) via OpenRouter (/api/tts)
+  // Primary: HeyGen Voice Turbo (Sabrina) via OpenRouter (/api/tts)
   const controller = new AbortController();
   activeTtsAbort = controller;
-  const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+  const timeoutId = window.setTimeout(() => controller.abort(), 20000);
 
   try {
     const res = await fetch('/api/tts', {
