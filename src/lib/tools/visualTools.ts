@@ -120,8 +120,37 @@ export async function generateImage(params: {
   return { prompt, error: lastError };
 }
 
+async function wikimediaImageFallback(query: string, maxResults: number): Promise<ImageSearchResult> {
+  try {
+    const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+      query
+    )}&gsrlimit=${Math.min(maxResults + 3, 10)}&prop=pageimages|info&inprop=url&piprop=original|thumbnail&pithumbsize=1024&format=json`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      return { query, images: [], error: `Wikimedia image search failed (${res.status}).` };
+    }
+    const data = await res.json();
+    const pages = Object.values(data?.query?.pages || {}) as any[];
+    const images: ImageSearchItem[] = pages
+      .map((p) => ({
+        url: String(p?.original?.source || p?.thumbnail?.source || ''),
+        description: String(p?.title || ''),
+      }))
+      .filter((img) => img.url.startsWith('http'))
+      .slice(0, maxResults);
+
+    return {
+      query,
+      images,
+      ...(images.length === 0 ? { error: 'No images found for that query.' } : {}),
+    };
+  } catch (err: any) {
+    return { query, images: [], error: err?.message || 'Fallback image search failed.' };
+  }
+}
+
 /**
- * Search the live web for high-resolution images via Tavily.
+ * Search the live web for high-resolution images via Tavily (with free Wikimedia fallback).
  */
 export async function searchImages(params: {
   query: string;
@@ -133,15 +162,12 @@ export async function searchImages(params: {
   if (!query) {
     return { query: '', images: [], error: 'Image search query cannot be empty.' };
   }
-  if (!apiKey) {
-    return {
-      query,
-      images: [],
-      error: 'TAVILY_API_KEY is not configured in .env.local for web image search.',
-    };
-  }
 
   const maxResults = Math.min(Math.max(Number(params.maxResults) || 6, 1), 10);
+
+  if (!apiKey) {
+    return wikimediaImageFallback(query, maxResults);
+  }
 
   try {
     const res = await fetch('https://api.tavily.com/search', {

@@ -12,31 +12,53 @@ export interface TavilySearchResponse {
   error?: string;
 }
 
+async function wikipediaFallbackSearch(query: string, maxResults: number): Promise<TavilySearchResponse> {
+  try {
+    const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+      query
+    )}&gsrlimit=${maxResults}&prop=extracts|info&inprop=url&exintro=1&explaintext=1&format=json`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      return { query, results: [], error: `Wikipedia search failed (${res.status}).` };
+    }
+    const data = await res.json();
+    const pages = Object.values(data?.query?.pages || {}) as any[];
+    const results: TavilySearchResult[] = pages.map((p) => ({
+      title: String(p?.title || 'Wikipedia'),
+      url: String(p?.fullurl || `https://en.wikipedia.org/?curid=${p?.pageid || ''}`),
+      content: String(p?.extract || '').slice(0, 1200),
+    }));
+    return {
+      query,
+      results,
+      ...(results.length === 0 ? { error: 'No web results found.' } : {}),
+    };
+  } catch (err: any) {
+    return { query, results: [], error: err?.message || 'Fallback web search failed.' };
+  }
+}
+
 /**
- * Search the live web using the Tavily Search API.
+ * Search the live web using the Tavily Search API (with free Wikipedia fallback if key is unset).
  */
 export async function tavilySearch(params: {
   query: string;
   maxResults?: number;
   searchDepth?: 'basic' | 'advanced';
 }): Promise<TavilySearchResponse> {
-  const apiKey = process.env.TAVILY_API_KEY;
+  const apiKey = (process.env.TAVILY_API_KEY || '').trim();
   const query = String(params.query || '').trim();
 
   if (!query) {
     return { query: '', results: [], error: 'Search query cannot be empty.' };
   }
 
+  const maxResults = Math.min(Math.max(Number(params.maxResults) || 5, 1), 10);
+
   if (!apiKey) {
-    return {
-      query,
-      results: [],
-      error:
-        'TAVILY_API_KEY is not configured on the server. Add TAVILY_API_KEY to .env.local to enable live web search.',
-    };
+    return wikipediaFallbackSearch(query, maxResults);
   }
 
-  const maxResults = Math.min(Math.max(Number(params.maxResults) || 5, 1), 10);
   const searchDepth = params.searchDepth === 'advanced' ? 'advanced' : 'basic';
 
   try {
