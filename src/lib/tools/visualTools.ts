@@ -64,6 +64,37 @@ export async function generateImage(params: {
     }
   }
 
+  // Fallback: OpenRouter image generation (if OPENROUTER_API_KEY has credits)
+  const openRouterKey = (process.env.OPENROUTER_API_KEY || '').trim();
+  if (openRouterKey) {
+    for (const orModel of ['google/gemini-3.1-flash-lite-image', 'google/gemini-3.1-flash-image']) {
+      try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${openRouterKey}`,
+          },
+          body: JSON.stringify({
+            model: orModel,
+            messages: [{ role: 'user', content: prompt }],
+            modalities: ['image', 'text'],
+          }),
+          signal: AbortSignal.timeout(25000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const imgUrl = data?.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+          if (typeof imgUrl === 'string' && imgUrl.length > 0) {
+            return { imageUrl: imgUrl, prompt };
+          }
+        }
+      } catch (orErr: any) {
+        console.warn(`[visualTools] OpenRouter ${orModel} failed:`, orErr?.message);
+      }
+    }
+  }
+
   return { prompt, error: lastError };
 }
 
