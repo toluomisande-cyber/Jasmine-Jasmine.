@@ -210,28 +210,46 @@ export function JustinaVoiceOverlay() {
             aria-label={orbState === 'speaking' ? 'Interrupt Jasmine' : 'Jasmine glowing voice orb'}
             className="relative flex items-center justify-center w-48 h-48 sm:w-56 sm:h-56 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] group"
           >
-            {/* Outer Ambient Glow Halo */}
+            {/* Multi-Layered Brand Glow Halos */}
             <span
-              style={{ transform: `scale(${orbScale * 1.18})` }}
-              className={`absolute inset-0 rounded-full blur-2xl transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              style={{ transform: `scale(${orbScale * 1.26})` }}
+              className={`absolute inset-0 rounded-full blur-3xl transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 orbState === 'thinking'
-                  ? 'bg-amber-500/35'
+                  ? 'bg-[#2563EB]/25'
                   : orbState === 'speaking'
-                    ? 'bg-gradient-to-tr from-emerald-500/40 to-violet-500/40'
+                    ? 'bg-[#93C5FD]/30'
+                    : muted
+                      ? 'bg-[#1E3A8A]/10'
+                      : 'bg-[#2563EB]/30'
+              }`}
+            />
+            <span
+              style={{ transform: `scale(${orbScale * 1.08})` }}
+              className={`absolute inset-4 rounded-full blur-xl transition-[transform,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                orbState === 'thinking'
+                  ? 'bg-[#93C5FD]/30'
+                  : orbState === 'speaking'
+                    ? 'bg-[#2563EB]/45'
                     : muted
                       ? 'bg-zinc-600/15'
-                      : 'bg-[#2563EB]/35'
+                      : 'bg-[#93C5FD]/35'
               }`}
             />
 
-            {/* Spinning Ring for Thinking State */}
-            {orbState === 'thinking' && (
-              <span className="absolute inset-3 rounded-full border-2 border-dashed border-amber-400/70 animate-spin" />
+            {/* Smooth Ripple Rings Derived from Jasmine Brand Blues */}
+            {!muted && orbState !== 'error' && (
+              <>
+                <span className="absolute inset-2 rounded-full border border-[#93C5FD]/30 justina-orb-ripple" />
+                <span
+                  style={{ animationDelay: '1.1s' }}
+                  className="absolute inset-2 rounded-full border border-[#2563EB]/30 justina-orb-ripple"
+                />
+              </>
             )}
 
-            {/* Speaking Wave Ring */}
-            {orbState === 'speaking' && (
-              <span className="absolute inset-2 rounded-full border-2 border-emerald-400/50 animate-ping" />
+            {/* Spinning Ring for Thinking State */}
+            {orbState === 'thinking' && (
+              <span className="absolute inset-3 rounded-full border-2 border-dashed border-[#93C5FD]/75 animate-spin" />
             )}
 
             {/* Core Audio-Reactive Glowing Orb */}
@@ -239,12 +257,12 @@ export function JustinaVoiceOverlay() {
               style={{ transform: `scale(${orbScale})` }}
               className={`relative w-32 h-32 sm:w-36 sm:h-36 rounded-full shadow-2xl transition-transform duration-100 ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center border ${
                 orbState === 'thinking'
-                  ? 'bg-gradient-to-br from-amber-400 via-amber-600 to-orange-700 border-amber-300/50 shadow-[0_0_48px_rgba(245,158,11,0.45)]'
+                  ? 'bg-gradient-to-br from-[#93C5FD] via-[#2563EB] to-[#0B1330] border-[#93C5FD]/60 shadow-[0_0_52px_rgba(37,99,235,0.5)]'
                   : orbState === 'speaking'
-                    ? 'bg-gradient-to-br from-emerald-400 via-teal-500 to-violet-600 border-emerald-200/50 shadow-[0_0_52px_rgba(52,211,153,0.45)]'
+                    ? 'bg-gradient-to-br from-[#BFDBFE] via-[#2563EB] to-[#1E3A8A] border-[#E8F0FF]/60 shadow-[0_0_64px_rgba(147,197,253,0.55)]'
                     : muted
-                      ? 'bg-gradient-to-br from-zinc-700 to-zinc-900 border-zinc-600/50'
-                      : 'bg-gradient-to-br from-[#93C5FD] via-[#2563EB] to-[#1E3A8A] border-[#93C5FD]/50 shadow-[0_0_48px_rgba(37,99,235,0.5)]'
+                      ? 'bg-gradient-to-br from-[#1E293B] to-[#0B1330] border-[#93C5FD]/15'
+                      : 'bg-gradient-to-br from-[#93C5FD] via-[#2563EB] to-[#1E3A8A] border-[#93C5FD]/50 shadow-[0_0_52px_rgba(37,99,235,0.5)]'
               }`}
             >
               <div className="w-14 h-14 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center border border-white/20">

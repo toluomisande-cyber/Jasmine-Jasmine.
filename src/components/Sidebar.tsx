@@ -145,7 +145,7 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 shrink-0 overflow-hidden bg-[var(--j-bg)] border-r border-[var(--j-border)] transition-all duration-200 ease-in-out select-none ${
+        className={`fixed md:static inset-y-0 left-0 z-50 shrink-0 overflow-hidden bg-[var(--j-surface-glass)] backdrop-blur-md border-r border-[#1E3A8A]/20 dark:border-[#93C5FD]/20 transition-all duration-200 ease-in-out select-none ${
           sidebarOpen
             ? 'w-[260px] translate-x-0 opacity-100'
             : 'w-[260px] -translate-x-full pointer-events-none md:translate-x-0 md:w-0 md:opacity-0 md:border-r-0'
@@ -153,12 +153,12 @@ export function Sidebar() {
       >
         <div className="w-[260px] h-full flex flex-col">
         {/* Top Action Bar */}
-        <div className="p-3 border-b border-[var(--j-border)] flex items-center justify-between gap-2">
+        <div className="p-3 border-b border-[#1E3A8A]/15 dark:border-[#93C5FD]/15 flex items-center justify-between gap-2">
           <button
             onClick={handleNewChat}
-            className="flex-1 flex items-center justify-center gap-2 h-9 px-3 rounded-lg bg-[var(--j-surface)] hover:bg-[var(--j-surface-hover)] text-[var(--j-text)] text-xs font-medium border border-[var(--j-border)] transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-gradient-to-r from-[#2563EB] to-[#1E3A8A] hover:from-[#1D4ED8] hover:to-[#1E3A8A] text-white text-xs font-semibold shadow-md shadow-blue-600/20 border border-[#93C5FD]/25 transition-all active:scale-[0.98]"
           >
-            <Plus className="w-4 h-4 text-[var(--j-accent)]" />
+            <Plus className="w-4 h-4 text-white" />
             <span>New chat</span>
           </button>
 
@@ -223,12 +223,18 @@ export function Sidebar() {
                             }
                           }
                         }}
-                        className={`group relative flex items-center justify-between gap-2 px-2.5 h-9 md:h-8 rounded-lg text-xs cursor-pointer transition-colors ${
+                        className={`group relative flex items-center justify-between gap-2 px-3 h-9 md:h-8 rounded-xl text-xs cursor-pointer transition-all ${
                           isActive
-                            ? 'bg-[var(--j-surface-alt)] text-[var(--j-text)] font-medium border border-[var(--j-border-strong)]'
+                            ? 'bg-[#2563EB]/10 dark:bg-[#2563EB]/20 text-[var(--j-text)] font-medium border border-[#2563EB]/30 shadow-sm'
                             : 'text-[var(--j-text-secondary)] hover:bg-[var(--j-surface-alt)] hover:text-[var(--j-text)]'
                         }`}
                       >
+                        {isActive && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-[#2563EB]"
+                          />
+                        )}
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           {t.pinned ? (
                             <Pin

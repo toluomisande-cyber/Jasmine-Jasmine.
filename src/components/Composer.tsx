@@ -339,7 +339,7 @@ export function Composer() {
         )}
 
         {/* Input box */}
-        <div className="relative rounded-2xl bg-[var(--j-surface)] border border-[var(--j-border-strong)] focus-within:border-[var(--j-accent)] transition-colors shadow-sm">
+        <div className="relative rounded-2xl bg-[var(--j-surface-glass)] backdrop-blur-md border border-[var(--j-border)] focus-within:border-[#2563EB] focus-within:ring-2 focus-within:ring-[#2563EB]/20 transition-all shadow-sm">
           <textarea
             ref={textareaRef}
             value={input}
@@ -393,11 +393,11 @@ export function Composer() {
               onClick={handleSubmit}
               disabled={!isStreaming && !canSend}
               aria-label={isStreaming ? 'Stop generating' : 'Send message'}
-              className={`p-2 rounded-xl transition-colors border ${
+              className={`p-2 rounded-xl transition-all border ${
                 isStreaming
                   ? 'bg-[var(--j-text)] text-[var(--j-bg)] border-[var(--j-text)]'
                   : canSend
-                  ? 'bg-[var(--j-accent)] hover:bg-[var(--j-accent-hover)] text-[var(--j-accent-fg)] border-[var(--j-accent)]'
+                  ? 'bg-gradient-to-br from-[#2563EB] to-[#1E3A8A] hover:from-[#1D4ED8] hover:to-[#1E3A8A] text-white border-[#93C5FD]/30 shadow-md shadow-blue-600/25'
                   : 'bg-[var(--j-surface-alt)] text-[var(--j-accent)] border-[var(--j-border-strong)] cursor-not-allowed'
               }`}
             >

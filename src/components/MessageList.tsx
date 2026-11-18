@@ -382,10 +382,14 @@ export function MessageList() {
   // Welcome State
   if (!activeThreadId || messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-6 select-none overflow-y-auto">
-        <div className="max-w-2xl w-full flex flex-col items-center text-center space-y-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 select-none overflow-y-auto relative">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] h-[360px] rounded-full bg-[radial-gradient(circle,rgba(37,99,235,0.12),transparent_70%)] blur-2xl"
+        />
+        <div className="max-w-2xl w-full flex flex-col items-center text-center space-y-6 relative z-10">
           <div className="text-[var(--j-text)]">
-            <JasmineLockup height={56} />
+            <JasmineLockup height={58} />
           </div>
 
           <p className="text-sm text-[var(--j-text-secondary)] max-w-md leading-relaxed">
@@ -393,15 +397,17 @@ export function MessageList() {
           </p>
 
           {/* 2x2 Starter Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full pt-2 text-left">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full pt-2 text-left">
             {STARTER_PROMPTS.map((card, idx) => (
               <button
                 key={idx}
                 onClick={() => sendMessage(card.prompt)}
-                className="group flex flex-col justify-between p-4 rounded-xl bg-[var(--j-surface)] hover:bg-[var(--j-surface-alt)] border border-[var(--j-border)] hover:border-[var(--j-border-strong)] transition-colors text-xs shadow-sm"
+                className="group flex flex-col justify-between p-4 rounded-2xl bg-[var(--j-surface-glass)] backdrop-blur-sm hover:bg-[var(--j-surface)] border border-[#1E3A8A]/15 dark:border-[#93C5FD]/20 hover:border-[#2563EB]/45 text-xs shadow-sm hover:-translate-y-0.5 hover:shadow-md hover:shadow-blue-600/10 transition-all duration-200"
               >
-                <div className="flex items-center gap-2 mb-2 font-medium text-[var(--j-text)]">
-                  {card.icon}
+                <div className="flex items-center gap-2.5 mb-2.5 font-semibold text-[var(--j-text)]">
+                  <span className="w-7 h-7 rounded-xl bg-[#2563EB]/10 dark:bg-[#2563EB]/20 border border-[#2563EB]/20 flex items-center justify-center shrink-0">
+                    {card.icon}
+                  </span>
                   <span>{card.title}</span>
                 </div>
                 <p className="text-[var(--j-text-secondary)] line-clamp-2 leading-relaxed">
@@ -497,7 +503,7 @@ export function MessageList() {
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <div className="px-4 py-2.5 rounded-2xl bg-[var(--j-surface-alt)] text-[var(--j-text)] text-sm leading-relaxed whitespace-pre-wrap break-words border border-[var(--j-border)] shadow-sm">
+                      <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#1E3A8A] text-white text-sm leading-relaxed whitespace-pre-wrap break-words border border-[#93C5FD]/25 shadow-md shadow-blue-600/20">
                         {m.content}
                       </div>
                     </div>

@@ -1,6 +1,21 @@
 import type { Metadata, Viewport } from 'next';
+import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '../components/Providers';
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Jasmine',
@@ -30,8 +45,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="bg-[var(--j-bg)] text-[var(--j-text)] antialiased">
+    <html lang="en" className={`${plusJakarta.variable} ${jetbrainsMono.variable}`}>
+      <body className="bg-[var(--j-bg)] text-[var(--j-text)] font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>
