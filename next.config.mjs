@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ['@google/genai', 'googleapis', 'cheerio'],
+    serverComponentsExternalPackages: ['@google/genai', 'googleapis', 'cheerio', 'web-push', 'pg'],
   },
 };
 

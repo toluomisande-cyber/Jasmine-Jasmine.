@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import webpush, { type PushSubscription } from 'web-push';
+import * as webpush from 'web-push';
+import type { PushSubscription } from 'web-push';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
