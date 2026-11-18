@@ -13,6 +13,7 @@ import {
   createTask,
 } from '@/lib/tools/workspaceTools';
 import { sendPushNotificationToAll } from '@/lib/pwa/pushStore';
+import { generateImage, searchImages } from '@/lib/tools/visualTools';
 import type { GroundingSource, UserProfile } from '@/types/chat';
 
 export const runtime = 'nodejs';
@@ -238,12 +239,44 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       required: ['title', 'body'],
     },
   },
+  {
+    name: 'generate_image',
+    description:
+      'Generate a high-fidelity, hyper-realistic (or stylized if requested) image from a detailed visual prompt specifying lighting, camera lens, aperture, texture, and composition.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        prompt: {
+          type: Type.STRING,
+          description:
+            'Rich, detailed text-to-image prompt including lighting, camera settings (e.g. 35mm lens, f/1.8, bokeh), texture, and composition.',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
+  {
+    name: 'search_images',
+    description:
+      'Search the live web for high-resolution image URLs and visual references matching a query.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        query: { type: Type.STRING, description: 'Image search query.' },
+        maxResults: { type: Type.NUMBER, description: 'Maximum images to return (1 to 10).' },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 const JASMINE_PERSONA = `You are Jasmine, a sharp, warm, witty, and genuinely interactive female personal assistant.
 - Your name is Jasmine (she/her). Never refer to yourself as Gemini, a Google model, or a generic AI assistant.
 - Talk naturally like a brilliant, fun, engaging friend—warm, expressive, and lively, while staying super helpful and clear.
-- You have live web search via Tavily (google_search), live webpage reading (browse_url), persistent memory (save_memory, search_memory), and Google Workspace tools (search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task).
+- You have live web search via Tavily (google_search, search_images), AI image generation (generate_image), live webpage reading (browse_url), persistent memory (save_memory, search_memory), push notifications (schedule_or_send_notification), and Google Workspace tools (search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task).
+- Visual Generation & Search:
+  1. When the user asks to create or generate an image, translate their concept into a rich, hyper-realistic prompt detailing precise lighting (e.g. volumetric lighting, golden hour, softbox studio lighting), camera settings (e.g. 35mm lens, f/1.8, bokeh, photorealistic, 8k resolution), texture, and composition (unless stylized art is explicitly requested), and call generate_image.
+  2. When the user asks to find or search for images on the web, call search_images and present the results cleanly.
 - Whenever the user tells you something personal about themselves (their name, preferences, job, location, goals, interests, or routines), call save_memory so you remember it in future sessions, and naturally use your remembered facts when relevant.
 - When the user asks to send an email, use prepare_email to create a confirmation draft card so they can review and click "Approve & Send". Never claim an email is already sent.
 - When writing code or technical explanations, be crisp, accurate, and practical without being dry or robotic.`;
@@ -795,6 +828,41 @@ export async function POST(req: NextRequest) {
                     : `Delivered to ${pushRes.sent} device(s)`
                 );
                 toolResult = pushRes;
+              } else if (call.name === 'generate_image') {
+                const imgPrompt = String(call.args.prompt || '');
+                sendEvent({ type: 'tool_status', status: 'Generating hyper-realistic image...' });
+                emitToolStep('analyze', 'running', 'Generating image', imgPrompt.slice(0, 110));
+                const genRes = await generateImage({ prompt: imgPrompt });
+                if (genRes.imageUrl) {
+                  sendEvent({
+                    type: 'generated_image',
+                    imageUrl: genRes.imageUrl,
+                    prompt: genRes.prompt,
+                  });
+                  emitToolStep('analyze', 'done', 'Generated image', 'Rendered successfully');
+                  toolResult = { generated: true, prompt: genRes.prompt };
+                } else {
+                  emitToolStep('analyze', 'error', 'Image generation failed', genRes.error);
+                  toolResult = { generated: false, error: genRes.error };
+                }
+              } else if (call.name === 'search_images') {
+                const q = String(call.args.query || '');
+                sendEvent({ type: 'tool_status', status: `Searching images for "${q}"...` });
+                emitToolStep('search', 'running', 'Searching web images', `Query: "${q}"`);
+                const imgSearch = await searchImages({
+                  query: q,
+                  maxResults: call.args.maxResults ? Number(call.args.maxResults) : 6,
+                });
+                if (imgSearch.images.length > 0) {
+                  sendEvent({ type: 'image_results', images: imgSearch.images });
+                }
+                emitToolStep(
+                  'search',
+                  imgSearch.error ? 'error' : 'done',
+                  'Searched web images',
+                  imgSearch.error ? imgSearch.error : `"${q}" · ${imgSearch.images.length} images`
+                );
+                toolResult = imgSearch;
               } else if (call.name === 'prepare_email') {
                 const to = String(call.args.to || '');
                 const subject = String(call.args.subject || '');

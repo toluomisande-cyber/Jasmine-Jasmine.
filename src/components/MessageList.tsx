@@ -611,6 +611,54 @@ export function MessageList() {
                           </div>
                         )}
 
+                        {m.generatedImages && m.generatedImages.length > 0 && (
+                          <div className="mt-3 space-y-3">
+                            {m.generatedImages.map((img, idx) => (
+                              <div
+                                key={idx}
+                                className="rounded-xl overflow-hidden border border-[var(--j-border)] bg-[var(--j-surface)] shadow-sm max-w-lg"
+                              >
+                                <img
+                                  src={img.url}
+                                  alt={img.prompt || 'Generated image'}
+                                  className="w-full h-auto object-cover"
+                                />
+                                <div className="px-3 py-2 flex items-center justify-between gap-2 border-t border-[var(--j-border)] text-[11px] text-[var(--j-text-secondary)]">
+                                  <span className="truncate">{img.prompt}</span>
+                                  <a
+                                    href={img.url}
+                                    download={`jasmine-image-${idx + 1}.png`}
+                                    className="shrink-0 font-medium text-[var(--j-accent)] hover:underline"
+                                  >
+                                    Download
+                                  </a>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {m.imageResults && m.imageResults.length > 0 && (
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {m.imageResults.map((img, idx) => (
+                              <a
+                                key={idx}
+                                href={img.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={img.description || img.url}
+                                className="group block rounded-xl overflow-hidden border border-[var(--j-border)] bg-[var(--j-surface)] hover:border-[var(--j-border-strong)] transition-colors"
+                              >
+                                <img
+                                  src={img.url}
+                                  alt={img.description || `Search result ${idx + 1}`}
+                                  className="w-full h-32 object-cover"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
                         {m.pendingAction && activeThreadId && (
                           <EmailConfirmationCard
                             threadId={activeThreadId}
@@ -672,11 +720,10 @@ export function MessageList() {
                               speakMessage(m.id, m.content);
                             }
                           }}
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${
-                            speakingMessageId === m.id
-                              ? 'text-[var(--j-accent)] bg-[var(--j-surface-alt)]'
-                              : 'hover:text-[var(--j-text)] hover:bg-[var(--j-surface-alt)]'
-                          }`}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${speakingMessageId === m.id
+                            ? 'text-[var(--j-accent)] bg-[var(--j-surface-alt)]'
+                            : 'hover:text-[var(--j-text)] hover:bg-[var(--j-surface-alt)]'
+                            }`}
                           title={speakingMessageId === m.id ? 'Stop reading' : 'Read aloud'}
                         >
                           {speakingMessageId === m.id ? (

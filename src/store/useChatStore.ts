@@ -941,6 +941,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
             patchMessageMeta({ toolStatus: evt.status || undefined });
           } else if (evt.type === 'sources' && Array.isArray(evt.sources)) {
             patchMessageMeta({ sources: evt.sources as GroundingSource[] });
+          } else if (evt.type === 'generated_image' && typeof evt.imageUrl === 'string') {
+            const currMsg = (get().messagesByThread[activeThreadId as string] || []).find(
+              (m) => m.id === assistantMessageId
+            );
+            const prev = currMsg?.generatedImages || [];
+            patchMessageMeta({
+              generatedImages: [
+                ...prev,
+                { url: evt.imageUrl, prompt: String(evt.prompt || '') },
+              ],
+            });
+          } else if (evt.type === 'image_results' && Array.isArray(evt.images)) {
+            patchMessageMeta({ imageResults: evt.images });
           } else if (evt.type === 'pending_action' && evt.action) {
             patchMessageMeta({ pendingAction: evt.action as PendingEmailAction });
           } else if (evt.type === 'memory_saved' && typeof evt.fact === 'string') {

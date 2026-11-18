@@ -67,6 +67,8 @@ export interface Message {
   reasoningDuration?: number;
   toolStatus?: string;
   sources?: GroundingSource[];
+  generatedImages?: { url: string; prompt: string }[];
+  imageResults?: { url: string; description?: string }[];
   pendingAction?: PendingEmailAction;
   createdAt: number;
 }
