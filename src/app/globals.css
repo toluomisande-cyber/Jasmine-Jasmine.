@@ -3,6 +3,9 @@
 @tailwind utilities;
 
 :root {
+  --font-sans: "Plus Jakarta Sans";
+  --font-mono: "JetBrains Mono";
+
   /* Light Mode — Jasmine Ice & Navy Palette */
   --j-bg: #f4f7ff;
   --j-bg-glow: rgba(37, 99, 235, 0.08);
