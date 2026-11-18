@@ -98,15 +98,48 @@ function getSharedAudio(): HTMLAudioElement | null {
   return sharedAudioEl;
 }
 
+const SILENT_WAV_DATA_URI =
+  'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+export function getUnlockedVoiceAudioElement(): HTMLAudioElement | null {
+  return getSharedAudio();
+}
+
 export function unlockSpeechSynthesis(): void {
   if (typeof window === 'undefined') return;
+
+  // 1. Unlock reusable HTMLAudioElement inside user click gesture
+  const audio = getSharedAudio();
+  if (audio) {
+    try {
+      audio.src = SILENT_WAV_DATA_URI;
+      audio.volume = 0;
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise
+          .then(() => {
+            audio.pause();
+            audio.currentTime = 0;
+            audio.volume = 1;
+          })
+          .catch(() => {
+            audio.volume = 1;
+          });
+      } else {
+        audio.volume = 1;
+      }
+    } catch {
+      // ignore audio element unlock errors
+    }
+  }
+
+  // 2. Unlock Web Audio API context
   const ctx = getSharedAudioContext();
   if (ctx) {
     try {
       if (ctx.state === 'suspended') {
         void ctx.resume().catch(() => { });
       }
-      // Play a silent 1-sample buffer inside the user gesture so Web Audio is unlocked for async replies
       const silentBuffer = ctx.createBuffer(1, 1, 22050);
       const src = ctx.createBufferSource();
       src.buffer = silentBuffer;
@@ -117,7 +150,7 @@ export function unlockSpeechSynthesis(): void {
     }
   }
 
-  // Also prime speechSynthesis on user gesture for fallback reliability
+  // 3. Also prime speechSynthesis on user gesture for 501 fallback reliability
   if (!('speechSynthesis' in window)) return;
   try {
     window.speechSynthesis.cancel();
@@ -334,7 +367,7 @@ export async function speakTextAloud(
       }
     }
 
-    const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+    const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(blob);
     activeObjectUrl = url;
 
@@ -434,7 +467,7 @@ async function playSentenceAudioBuffer(
     const audio = getSharedAudio();
     if (audio) {
       try {
-        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
         activeObjectUrl = url;
         await new Promise<void>((resolve) => {

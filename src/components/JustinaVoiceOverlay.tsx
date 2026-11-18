@@ -156,7 +156,7 @@ export function JustinaVoiceOverlay() {
             style={{ backgroundColor: indicatorColor }}
           />
           <span className="text-sm font-medium text-[#eef0f5] truncate">Jasmine</span>
-          <span className="text-xs text-[#7a8296] hidden sm:inline">Live · Aoede</span>
+          <span className="text-xs text-[#7a8296] hidden sm:inline">Live · Fish Audio</span>
           <span className="text-xs font-mono tabular-nums text-[#7a8296] pl-2 border-l border-[#eef0f5]/[0.08]">
             {formatElapsed(elapsedSeconds)}
           </span>
