@@ -39,8 +39,8 @@ export async function POST() {
 
     return NextResponse.json({
       token: tokenRes.name,
-      model: 'gemini-3.8-live',
-      fallbackModel: 'gemini-2.5-flash-native-audio-latest',
+      model: 'gemini-2.5-flash-native-audio-latest',
+      fallbackModel: 'gemini-2.5-flash-native-audio-preview-12-2025',
       voiceName: 'Aoede',
     });
   } catch (err: any) {

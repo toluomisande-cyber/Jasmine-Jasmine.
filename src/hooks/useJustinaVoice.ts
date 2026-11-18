@@ -17,12 +17,21 @@ function downsampleTo16kInt16(float32: Float32Array, inputSampleRate: number): I
     }
     return out;
   }
+  // Box-filter averaging resampler prevents aliasing when hardware sampleRate is 44.1kHz or 48kHz
   const ratio = inputSampleRate / 16000;
-  const newLen = Math.round(float32.length / ratio);
+  const newLen = Math.floor(float32.length / ratio);
   const out = new Int16Array(newLen);
   for (let i = 0; i < newLen; i++) {
-    const idx = Math.min(float32.length - 1, Math.round(i * ratio));
-    const s = Math.max(-1, Math.min(1, float32[idx]));
+    const start = Math.floor(i * ratio);
+    const end = Math.min(float32.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    let count = 0;
+    for (let j = start; j < end; j++) {
+      sum += float32[j];
+      count++;
+    }
+    const avg = count > 0 ? sum / count : float32[start] || 0;
+    const s = Math.max(-1, Math.min(1, avg));
     out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
   return out;
@@ -257,7 +266,12 @@ export function useJustinaVoice(active: boolean) {
           throw new Error('Web Audio API is not supported in this browser.');
         }
 
-        const captureCtx = new AudioCtx();
+        let captureCtx: AudioContext;
+        try {
+          captureCtx = new AudioCtx({ sampleRate: 16000 });
+        } catch {
+          captureCtx = new AudioCtx();
+        }
         captureCtxRef.current = captureCtx;
         if (captureCtx.state === 'suspended') {
           await captureCtx.resume();
@@ -494,11 +508,13 @@ export function useJustinaVoice(active: boolean) {
 
         let session: Session;
         try {
-          session = await connectWithModel(tokenData.model || 'gemini-3.8-live');
+          session = await connectWithModel(
+            tokenData.model || 'gemini-2.5-flash-native-audio-latest'
+          );
         } catch (primaryErr) {
           console.warn('[useJustinaVoice] Primary live model failed, trying fallback:', primaryErr);
           session = await connectWithModel(
-            tokenData.fallbackModel || 'gemini-2.5-flash-native-audio-latest'
+            tokenData.fallbackModel || 'gemini-2.5-flash-native-audio-preview-12-2025'
           );
         }
 
