@@ -95,6 +95,28 @@ export async function generateImage(params: {
     }
   }
 
+  // Fallback 2: Free Pollinations Flux image generation (no billing/quota required)
+  try {
+    const encodedPrompt = encodeURIComponent(prompt.slice(0, 600));
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const pollUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`;
+    const pollRes = await fetch(pollUrl, { signal: AbortSignal.timeout(25000) });
+    if (pollRes.ok) {
+      const contentType = pollRes.headers.get('content-type') || 'image/jpeg';
+      if (contentType.startsWith('image/')) {
+        const buf = Buffer.from(await pollRes.arrayBuffer());
+        if (buf.length > 1024) {
+          return {
+            imageUrl: `data:${contentType};base64,${buf.toString('base64')}`,
+            prompt,
+          };
+        }
+      }
+    }
+  } catch (pollErr: any) {
+    console.warn('[visualTools] Pollinations fallback failed:', pollErr?.message);
+  }
+
   return { prompt, error: lastError };
 }
 
