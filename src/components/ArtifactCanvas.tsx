@@ -1,19 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Copy, Check, Download, Code2, Eye } from 'lucide-react';
 import { useChatStore } from '../store/useChatStore';
 
 export function ArtifactCanvas() {
   const { activeArtifact, setArtifactVersion, closeArtifact } = useChatStore();
-  const [viewMode, setViewMode] = useState<'code' | 'preview'>('code');
+  const [viewMode, setViewMode] = useState<'code' | 'preview'>('preview');
   const [copied, setCopied] = useState(false);
+
+  const lang = (activeArtifact?.language || '').toLowerCase();
+  const canPreview = lang === 'html' || lang === 'svg';
+
+  useEffect(() => {
+    if (canPreview) {
+      setViewMode('preview');
+    } else {
+      setViewMode('code');
+    }
+  }, [activeArtifact?.title, canPreview]);
 
   if (!activeArtifact) return null;
 
   const content = activeArtifact.versions[activeArtifact.activeVersionIndex] || '';
-  const lang = activeArtifact.language.toLowerCase();
-  const canPreview = lang === 'html' || lang === 'svg';
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);

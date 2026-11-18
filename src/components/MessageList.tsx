@@ -38,6 +38,8 @@ import {
   Square,
   PanelRight,
   Pencil,
+  Eye,
+  Download,
 } from 'lucide-react';
 import { JasmineIcon, JasmineLockup } from './JasmineLogo';
 import { ThinkingBubble, TypingIndicator } from './ThinkingBubble';
@@ -46,27 +48,27 @@ import { ReasoningSteps } from './ReasoningSteps';
 const STARTER_PROMPTS = [
   {
     icon: <Code2 className="w-4 h-4 text-[var(--j-accent)]" />,
-    title: 'Write a rate limiter',
-    desc: 'Sliding-window log rate limiter in TypeScript with tests',
-    prompt: 'Write a production-ready asynchronous rate-limiter in TypeScript using a sliding window log algorithm with tests.',
+    title: 'Interactive Visual Widget',
+    desc: 'Build a live interactive compound-interest calculator widget in HTML',
+    prompt: 'Build an interactive compound interest & investment growth calculator as a self-contained HTML widget with sliders and a live visual chart.',
   },
   {
     icon: <Compass className="w-4 h-4 text-[var(--j-accent)]" />,
-    title: 'Compare architectures',
-    desc: 'Event-driven queues vs WebSockets for real-time messaging',
-    prompt: 'Compare Event-Driven Architecture with persistent WebSockets for high-scale real-time collaboration. Detail pros, cons, and failure modes.',
+    title: 'Design a Vector SVG Logo',
+    desc: 'Create a modern geometric SVG brand mark with live preview & export',
+    prompt: 'Design a sleek, modern geometric SVG logo for an AI studio called "Jasmine", featuring cobalt and ice-blue gradients on a midnight navy badge.',
   },
   {
     icon: <Lightbulb className="w-4 h-4 text-[var(--j-accent)]" />,
-    title: 'Explain a concept',
-    desc: 'Quantum superposition and entanglement with clear intuition',
-    prompt: 'Explain quantum superposition and entanglement in intuitive terms with real-world analogies, mathematical intuition, and common misconceptions.',
+    title: 'Concept-Grounded Lesson',
+    desc: 'Learn quantum superposition step-by-step from intuition to math',
+    prompt: 'Teach me quantum superposition and entanglement step-by-step, grounding every prerequisite intuition before introducing the math.',
   },
   {
     icon: <FileSearch className="w-4 h-4 text-[var(--j-accent)]" />,
-    title: 'Debug React closures',
-    desc: 'Fix stale closures and memory leaks inside useEffect hooks',
-    prompt: 'Explain how JavaScript closures in React useEffect hooks cause subtle memory leaks and zombie event listeners, with code before/after fixes.',
+    title: 'Write a Rate Limiter',
+    desc: 'Sliding-window log rate limiter in TypeScript with tests',
+    prompt: 'Write a production-ready asynchronous rate-limiter in TypeScript using a sliding window log algorithm with unit tests.',
   },
 ];
 
@@ -76,7 +78,22 @@ interface CodeBlockProps {
   theme: 'light' | 'dark';
 }
 
-function CodeBlock({ language, value, theme }: CodeBlockProps) {
+const CodeBlock = React.memo(function CodeBlock({ language, value, theme }: CodeBlockProps) {
+  const normLang = (language || '').toLowerCase().trim();
+  const trimmed = value.trim();
+  const isSvg = normLang === 'svg' || (normLang === 'xml' && trimmed.startsWith('<svg')) || trimmed.startsWith('<svg');
+  const isHtml =
+    normLang === 'html' &&
+    (trimmed.includes('<html') ||
+      trimmed.includes('<!doctype') ||
+      trimmed.includes('<style') ||
+      trimmed.includes('<script') ||
+      trimmed.includes('<div') ||
+      trimmed.includes('<canvas'));
+  const canPreview = isSvg || isHtml;
+  const isComplete = isSvg ? trimmed.includes('</svg>') : isHtml ? trimmed.length > 60 : false;
+
+  const [viewMode, setViewMode] = useState<'preview' | 'code'>(canPreview ? 'preview' : 'code');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -89,17 +106,112 @@ function CodeBlock({ language, value, theme }: CodeBlockProps) {
     }
   };
 
+  const handleDownloadSvg = () => {
+    const blob = new Blob([value], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'jasmine-design.svg';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPng = () => {
+    try {
+      const svgBlob = new Blob([value], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 800;
+        canvas.height = img.naturalHeight || 800;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((pngBlob) => {
+            if (pngBlob) {
+              const pngUrl = URL.createObjectURL(pngBlob);
+              const a = document.createElement('a');
+              a.href = pngUrl;
+              a.download = 'jasmine-design.png';
+              a.click();
+              URL.revokeObjectURL(pngUrl);
+            }
+          }, 'image/png');
+        }
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch (e) {
+      console.error('Failed to export PNG:', e);
+    }
+  };
+
   return (
-    <div className="relative my-3 rounded-lg overflow-hidden border border-[var(--j-border)] bg-[var(--j-surface)] text-xs">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--j-surface-alt)] border-b border-[var(--j-border)] text-[var(--j-text-secondary)] select-none">
-        <span className="font-mono text-[11px] text-[var(--j-text)] lowercase">{language || 'text'}</span>
+    <div className="relative my-3 rounded-xl overflow-hidden border border-[var(--j-border)] bg-[var(--j-surface)] text-xs shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 bg-[var(--j-surface-alt)] border-b border-[var(--j-border)] text-[var(--j-text-secondary)] select-none">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] font-medium text-[var(--j-text)] lowercase">
+            {isSvg ? 'svg studio' : isHtml ? 'interactive widget' : language || 'text'}
+          </span>
+          {canPreview && (
+            <div className="inline-flex rounded-md bg-[var(--j-bg)] border border-[var(--j-border)] p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('preview')}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  viewMode === 'preview'
+                    ? 'bg-[#2563EB] text-white'
+                    : 'text-[var(--j-text-muted)] hover:text-[var(--j-text)]'
+                }`}
+              >
+                <Eye className="w-2.5 h-2.5" />
+                <span>Preview</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('code')}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                  viewMode === 'code'
+                    ? 'bg-[#2563EB] text-white'
+                    : 'text-[var(--j-text-muted)] hover:text-[var(--j-text)]'
+                }`}
+              >
+                <Code2 className="w-2.5 h-2.5" />
+                <span>Code</span>
+              </button>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-3">
+          {isSvg && isComplete && (
+            <>
+              <button
+                type="button"
+                onClick={handleDownloadSvg}
+                className="flex items-center gap-1 text-[11px] text-[var(--j-text-secondary)] hover:text-[var(--j-text)] transition-colors"
+                title="Download scalable SVG"
+              >
+                <Download className="w-3 h-3" />
+                <span>SVG</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportPng}
+                className="flex items-center gap-1 text-[11px] text-[var(--j-text-secondary)] hover:text-[var(--j-text)] transition-colors"
+                title="Export high-res PNG"
+              >
+                <Download className="w-3 h-3" />
+                <span>PNG</span>
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() =>
               useChatStore.getState().openArtifact({
-                title: `${language || 'code'} snippet`,
-                language: language || 'text',
+                title: isSvg ? 'SVG Vector Design' : isHtml ? 'Interactive Widget' : `${language || 'code'} snippet`,
+                language: isSvg ? 'svg' : language || 'text',
                 content: value,
               })
             }
@@ -127,25 +239,41 @@ function CodeBlock({ language, value, theme }: CodeBlockProps) {
           </button>
         </div>
       </div>
-      <div className="overflow-x-auto p-3 font-mono">
-        <SyntaxHighlighter
-          language={language || 'text'}
-          style={theme === 'dark' ? vscDarkPlus : oneLight}
-          customStyle={{
-            margin: 0,
-            padding: 0,
-            background: 'transparent',
-            fontSize: '12.5px',
-            lineHeight: '1.6',
-          }}
-          wrapLines={true}
-        >
-          {value}
-        </SyntaxHighlighter>
-      </div>
+
+      {canPreview && viewMode === 'preview' && isComplete ? (
+        <div className="w-full bg-[var(--j-bg)] border-b border-[var(--j-border)]">
+          <iframe
+            title={isSvg ? 'SVG Live Preview' : 'Interactive Widget Preview'}
+            sandbox="allow-scripts"
+            srcDoc={
+              isSvg
+                ? `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:260px;background:transparent;padding:16px;box-sizing:border-box;}svg{max-width:100%;max-height:240px;height:auto;width:auto;}</style></head><body>${value}</body></html>`
+                : value
+            }
+            className={`w-full border-0 ${isSvg ? 'h-[270px]' : 'h-[360px] bg-white'}`}
+          />
+        </div>
+      ) : (
+        <div className="overflow-x-auto p-3 font-mono">
+          <SyntaxHighlighter
+            language={language || 'text'}
+            style={theme === 'dark' ? vscDarkPlus : oneLight}
+            customStyle={{
+              margin: 0,
+              padding: 0,
+              background: 'transparent',
+              fontSize: '12.5px',
+              lineHeight: '1.6',
+            }}
+            wrapLines={true}
+          >
+            {value}
+          </SyntaxHighlighter>
+        </div>
+      )}
     </div>
   );
-}
+});
 
 function AttachmentPreview({ attachment }: { attachment: Attachment }) {
   const isImage = attachment.mimeType.startsWith('image/');
@@ -674,10 +802,10 @@ export function MessageList() {
                         )}
 
                         {m.sources && m.sources.length > 0 && (
-                          <div className="mt-3 pt-2 border-t border-[var(--j-border)] flex flex-wrap items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 text-[11px] text-[var(--j-text-muted)] mr-1">
-                              <Globe className="w-3 h-3" />
-                              Sources
+                          <div className="mt-3 pt-2.5 border-t border-[var(--j-border)] flex flex-wrap items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--j-text-muted)] mr-1">
+                              <Globe className="w-3 h-3 text-[var(--j-accent)]" />
+                              Grounded Sources
                             </span>
                             {m.sources.map((src, idx) => (
                               <a
@@ -685,11 +813,14 @@ export function MessageList() {
                                 href={src.uri}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--j-surface-alt)] hover:bg-[var(--j-surface-hover)] border border-[var(--j-border)] text-[11px] text-[var(--j-text-secondary)] hover:text-[var(--j-text)] transition-colors max-w-[200px]"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--j-surface-alt)] hover:bg-[var(--j-surface-hover)] border border-[var(--j-border)] text-[11px] text-[var(--j-text-secondary)] hover:text-[var(--j-text)] transition-colors max-w-[230px]"
                                 title={src.uri}
                               >
+                                <span className="font-mono font-semibold text-[10px] text-[var(--j-accent)] shrink-0">
+                                  [{idx + 1}]
+                                </span>
                                 <span className="truncate">{src.title}</span>
-                                <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                                <ExternalLink className="w-2.5 h-2.5 shrink-0 opacity-75" />
                               </a>
                             ))}
                           </div>

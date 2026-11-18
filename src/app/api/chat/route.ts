@@ -14,6 +14,7 @@ import {
 } from '@/lib/tools/workspaceTools';
 import { sendPushNotificationToAll } from '@/lib/pwa/pushStore';
 import { generateImage, searchImages } from '@/lib/tools/visualTools';
+import { loadWikiNotes, upsertWikiNote, queryWikiNotes } from '@/lib/tools/wikiMemory';
 import type { GroundingSource, UserProfile } from '@/types/chat';
 
 export const runtime = 'nodejs';
@@ -94,17 +95,57 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'save_memory',
     description:
-      'Save a personal fact, preference, name, goal, or important detail the user shares about themselves so you remember it in future conversations.',
+      'Save a personal fact, preference, name, project, decision, goal, or important detail the user shares about themselves so you remember it in future conversations.',
     parameters: {
       type: Type.OBJECT,
       properties: {
         fact: {
           type: Type.STRING,
           description:
-            'A concise, clear statement of the fact to remember (e.g. "User\'s name is Alex", "Prefers concise replies", "Lives in Berlin").',
+            'A concise, clear statement of the fact to remember (e.g. "User\'s name is Alex", "Prefers concise replies", "Building Jasmine AI on Next.js").',
+        },
+        category: {
+          type: Type.STRING,
+          description:
+            'Optional category tag: "preference", "project", "decision", "contact", "goal", or "fact".',
         },
       },
       required: ['fact'],
+    },
+  },
+  {
+    name: 'manage_wiki_note',
+    description:
+      'Chief-of-Staff persistent wiki notebook for tracking ongoing projects, architectural decisions, study topics, and structured reference notes across sessions.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        action: {
+          type: Type.STRING,
+          description: 'Action to perform: "upsert" to create/update a note, "search" to find notes, or "list" to view the wiki index.',
+        },
+        topic: {
+          type: Type.STRING,
+          description: 'Title of the wiki page (required for "upsert").',
+        },
+        category: {
+          type: Type.STRING,
+          description: 'Category: "project", "decision", "preference", "contact", "goal", or "reference".',
+        },
+        summary: {
+          type: Type.STRING,
+          description: 'One-line summary for the wiki index (required for "upsert").',
+        },
+        content: {
+          type: Type.STRING,
+          description: 'Structured markdown content of the note (required for "upsert").',
+        },
+        query: {
+          type: Type.STRING,
+          description: 'Search keyword when action is "search".',
+        },
+      },
+      required: ['action'],
     },
   },
   {
@@ -270,16 +311,29 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
 ];
 
-const JASMINE_PERSONA = `You are Jasmine, a sharp, warm, witty, and genuinely interactive female personal assistant.
+const JASMINE_PERSONA = `You are Jasmine, a sharp, warm, witty, and genuinely interactive female personal assistant and Chief of Staff.
 - Your name is Jasmine (she/her). Never refer to yourself as Gemini, a Google model, or a generic AI assistant.
-- Talk naturally like a brilliant, fun, engaging friend—warm, expressive, and lively, while staying super helpful and clear.
-- You have live web search via Tavily (google_search, search_images), AI image generation (generate_image), live webpage reading (browse_url), persistent memory (save_memory, search_memory), push notifications (schedule_or_send_notification), and Google Workspace tools (search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task).
-- Visual Generation & Search:
-  1. When the user asks to create or generate an image, translate their concept into a rich, hyper-realistic prompt detailing precise lighting (e.g. volumetric lighting, golden hour, softbox studio lighting), camera settings (e.g. 35mm lens, f/1.8, bokeh, photorealistic, 8k resolution), texture, and composition (unless stylized art is explicitly requested), and call generate_image.
-  2. When the user asks to find or search for images on the web, call search_images and present the results cleanly.
-- Whenever the user tells you something personal about themselves (their name, preferences, job, location, goals, interests, or routines), call save_memory so you remember it in future sessions, and naturally use your remembered facts when relevant.
-- When the user asks to send an email, use prepare_email to create a confirmation draft card so they can review and click "Approve & Send". Never claim an email is already sent.
-- When writing code or technical explanations, be crisp, accurate, and practical without being dry or robotic.`;
+- Talk naturally like a brilliant, fun, engaging friend and strategic partner—warm, expressive, and lively, while staying super helpful and clear.
+- You have live web search via Tavily (google_search, search_images), AI image generation (generate_image), live webpage reading (browse_url), persistent memory & Chief-of-Staff wiki notes (save_memory, search_memory, manage_wiki_note), push notifications (schedule_or_send_notification), and Google Workspace tools (search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task).
+
+## 1. Anti-Slop Writing & Concept-Grounded Explanations (Unslop + Writing-Beats)
+- Never start replies with hollow AI clichés or throat-clearing ("Certainly!", "Great question!", "Let's delve into...", "Here is a comprehensive breakdown"). Lead directly with the answer, insight, or a warm human reaction.
+- When explaining complex or technical topics, ground prerequisite concepts first before leaning on jargon or formulas. Introduce one new concept per beat so the intuition lands effortlessly.
+
+## 2. Anti-Hallucination & Retrieval Grounding (RAG Blueprint + Stopping Hallucinations)
+- Before calling google_search on a vague or conversational prompt, rewrite the query into a targeted, high-precision search query including relevant entities and the current year from your date/time context.
+- When answering from google_search, browse_url, Gmail, Drive, or uploaded files, ground every factual claim in the retrieved evidence and cite sources inline using numbered brackets like [1], [2] that match the numbered sources returned by the tool.
+- Never fabricate citations, URLs, emails, or data. If a tool fails, isn't configured, or returns zero matches, state clearly what happened instead of guessing.
+
+## 3. Chief-of-Staff Memory & Strategic Continuity
+- Think on two tracks simultaneously: Tactical (solve the user's immediate request cleanly) and Strategic (capture key context that makes future requests faster and smarter).
+- Whenever the user shares personal facts, preferences, goals, or project details, call save_memory. For deeper multi-part projects, decisions, or ongoing work, also maintain structured notes via manage_wiki_note.
+
+## 4. Generative UI, Interactive Teaching & SVG Logo Studio
+- SVG Logo & Vector Studio: When the user asks for a logo, icon, badge, diagram, or vector graphic, craft a complete, self-contained \`\`\`svg\`\`\` code block with a clean viewBox, refined typography, layered gradients, and geometric precision. Jasmine's UI renders \`\`\`svg\`\`\` blocks live inline with 1-click SVG and PNG export.
+- Interactive Widgets & Visual Lessons: When the user asks for an interactive widget, calculator, dashboard, chart, or visual explainer/lesson, build a self-contained \`\`\`html\`\`\` code block (complete HTML5 with embedded CSS and interactive JavaScript) so they can interact with it live inside Jasmine's inline preview and Artifact Canvas.
+- Photo/Art Generation & Web Images: When asked for a photographic or painted image, translate their idea into a rich prompt (specifying volumetric/studio lighting, lens & aperture like 35mm f/1.8, texture, and composition) and call generate_image (or search_images to find real web photos).
+- When the user asks to send an email, always use prepare_email so they can review the confirmation card and click "Approve & Send". Never claim an email has already been sent.`;
 
 const JUSTINA_VOICE_INSTRUCTION = `You are Jasmine, a warm, lively, and extremely conversational personal assistant on a live two-way phone call with the user.
 - Speak like a real friend on a voice call: use natural, flowing, everyday speech ("Gotcha!", "Ooh, nice", "Wait—let me check that for you").
@@ -395,6 +449,15 @@ export async function POST(req: NextRequest) {
           .join('\n')}`
         : '';
 
+    const wikiNotes = loadWikiNotes();
+    const wikiSection =
+      wikiNotes.length > 0
+        ? `\n\n## Chief-of-Staff Wiki Index (use manage_wiki_note to inspect or update):\n${wikiNotes
+          .slice(0, 15)
+          .map((n) => `- [${n.category}] ${n.topic}: ${n.summary}`)
+          .join('\n')}`
+        : '';
+
     const now = new Date();
     const fallbackLocal = now.toLocaleString('en-US', {
       weekday: 'long',
@@ -409,8 +472,8 @@ export async function POST(req: NextRequest) {
     const timeSection = `\n\n## Current date & time (authoritative — always use this for today, tomorrow, dates, and scheduling):\n- Local date & time: ${clientTimeContext?.localFormatted || fallbackLocal}\n- Timezone: ${clientTimeContext?.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}\n- ISO timestamp: ${clientTimeContext?.iso || now.toISOString()}`;
 
     const effectiveSystemInstruction = voiceMode
-      ? `${baseInstruction}${timeSection}${profileSection}${memorySection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
-      : `${baseInstruction}${timeSection}${profileSection}${memorySection}`;
+      ? `${baseInstruction}${timeSection}${profileSection}${memorySection}${wikiSection}\n\n${JUSTINA_VOICE_INSTRUCTION}`
+      : `${baseInstruction}${timeSection}${profileSection}${memorySection}${wikiSection}`;
 
     const encoder = new TextEncoder();
 
@@ -635,12 +698,20 @@ export async function POST(req: NextRequest) {
                     });
                   }
                 }
-                if (collectedSources.size > 0) {
+                const orderedSources = Array.from(collectedSources.values());
+                if (orderedSources.length > 0) {
                   sendEvent({
                     type: 'sources',
-                    sources: Array.from(collectedSources.values()),
+                    sources: orderedSources,
                   });
                 }
+                const numberedResults = searchRes.results.map((item) => {
+                  const idx = orderedSources.findIndex((s) => s.uri === item.url);
+                  return {
+                    ...item,
+                    citationTag: idx >= 0 ? `[${idx + 1}]` : undefined,
+                  };
+                });
                 emitToolStep(
                   'search',
                   searchRes.error ? 'error' : 'done',
@@ -653,12 +724,27 @@ export async function POST(req: NextRequest) {
                     .map((r) => r.title)
                     .join(' · ') || undefined
                 );
-                toolResult = searchRes;
+                toolResult = {
+                  ...searchRes,
+                  results: numberedResults,
+                  citationInstruction:
+                    'Cite facts from these sources inline using their citationTag (e.g. [1], [2]).',
+                };
               } else if (call.name === 'browse_url') {
                 const targetUrl = String(call.args.url || '');
                 sendEvent({ type: 'tool_status', status: `Reading ${targetUrl}...` });
                 emitToolStep('globe', 'running', 'Reading webpage', targetUrl);
                 const pageRes = await browseUrl(targetUrl);
+                if (targetUrl && !(pageRes as any)?.error) {
+                  collectedSources.set(targetUrl, {
+                    title: (pageRes as any)?.title || targetUrl,
+                    uri: targetUrl,
+                  });
+                  sendEvent({
+                    type: 'sources',
+                    sources: Array.from(collectedSources.values()),
+                  });
+                }
                 emitToolStep(
                   'globe',
                   (pageRes as any)?.error ? 'error' : 'done',
@@ -690,14 +776,43 @@ export async function POST(req: NextRequest) {
                 );
                 toolResult = gmailRes;
               } else if (call.name === 'save_memory') {
-                const fact = String(call.args.fact || '').trim();
-                if (fact) {
+                const rawFact = String(call.args.fact || '').trim();
+                const category = String(call.args.category || '').trim();
+                const fact = category ? `[${category}] ${rawFact}` : rawFact;
+                if (rawFact) {
                   sendEvent({ type: 'tool_status', status: 'Saving to personal memory...' });
                   emitToolStep('memory', 'done', 'Saved to personal memory', fact);
                   sendEvent({ type: 'memory_saved', fact });
                   toolResult = { saved: true, fact };
                 } else {
                   toolResult = { saved: false, error: 'Fact cannot be empty.' };
+                }
+              } else if (call.name === 'manage_wiki_note') {
+                const action = String(call.args.action || 'list').toLowerCase();
+                if (action === 'upsert') {
+                  const topic = String(call.args.topic || 'Untitled Note').trim();
+                  const summary = String(call.args.summary || topic).trim();
+                  const content = String(call.args.content || summary).trim();
+                  const rawCat = String(call.args.category || 'project').toLowerCase();
+                  const category = (
+                    ['project', 'decision', 'preference', 'contact', 'goal', 'reference'].includes(rawCat)
+                      ? rawCat
+                      : 'project'
+                  ) as 'project' | 'decision' | 'preference' | 'contact' | 'goal' | 'reference';
+                  sendEvent({ type: 'tool_status', status: `Updating Chief-of-Staff wiki: "${topic}"...` });
+                  const note = upsertWikiNote({ topic, category, summary, content });
+                  sendEvent({ type: 'memory_saved', fact: `[Wiki/${category}] ${topic}: ${summary}` });
+                  emitToolStep('memory', 'done', 'Updated Chief-of-Staff Wiki', `${topic} (${category})`);
+                  toolResult = { saved: true, note };
+                } else if (action === 'search') {
+                  const q = String(call.args.query || '');
+                  const matches = queryWikiNotes(q);
+                  emitToolStep('memory', 'done', 'Searched Chief-of-Staff Wiki', `"${q}" · ${matches.length} notes`);
+                  toolResult = { count: matches.length, notes: matches };
+                } else {
+                  const notes = loadWikiNotes();
+                  emitToolStep('memory', 'done', 'Read Chief-of-Staff Wiki index', `${notes.length} notes`);
+                  toolResult = { count: notes.length, notes };
                 }
               } else if (call.name === 'search_memory') {
                 const q = String(call.args.query || '').toLowerCase().trim();
