@@ -373,3 +373,220 @@ export async function speakTextAloud(
     speakWithBrowserFallback(spoken, myId, callbacks);
   }
 }
+
+async function fetchTtsSentenceBuffer(
+  sentence: string,
+  voice: string,
+  myId: number
+): Promise<ArrayBuffer | null> {
+  if (activeSpeechId !== myId) return null;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 20000);
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: sentence, voice }),
+      signal: controller.signal,
+    });
+    window.clearTimeout(timeoutId);
+    if (activeSpeechId !== myId || !res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    window.clearTimeout(timeoutId);
+    return null;
+  }
+}
+
+async function playSentenceAudioBuffer(
+  arrayBuffer: ArrayBuffer | null,
+  fallbackSentence: string,
+  myId: number
+): Promise<void> {
+  if (activeSpeechId !== myId) return;
+
+  if (arrayBuffer) {
+    const ctx = getSharedAudioContext();
+    if (ctx) {
+      try {
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+        if (activeSpeechId !== myId) return;
+        await new Promise<void>((resolve) => {
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
+          activeBufferSource = source;
+          source.onended = () => {
+            if (activeBufferSource === source) activeBufferSource = null;
+            resolve();
+          };
+          source.start(0);
+        });
+        return;
+      } catch {
+        // fall through to HTMLAudioElement
+      }
+    }
+
+    const audio = getSharedAudio();
+    if (audio) {
+      try {
+        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        activeObjectUrl = url;
+        await new Promise<void>((resolve) => {
+          audio.src = url;
+          audio.onended = () => {
+            if (activeObjectUrl === url) {
+              URL.revokeObjectURL(url);
+              activeObjectUrl = null;
+            }
+            resolve();
+          };
+          audio.onerror = () => {
+            if (activeObjectUrl === url) {
+              URL.revokeObjectURL(url);
+              activeObjectUrl = null;
+            }
+            resolve();
+          };
+          void audio.play().catch(() => resolve());
+        });
+        return;
+      } catch {
+        // fall through to browser voice
+      }
+    }
+  }
+
+  await new Promise<void>((resolve) => {
+    speakWithBrowserFallback(fallbackSentence, myId, {
+      onEnd: resolve,
+    });
+  });
+}
+
+export interface StreamingSpeechQueue {
+  push: (chunk: string) => void;
+  finish: () => void;
+  cancel: () => void;
+}
+
+/**
+ * Stream speech sentence-by-sentence as text chunks arrive, prefetching upcoming
+ * sentences in parallel so Jasmine starts speaking within ~1s while still typing.
+ */
+export function createStreamingSpeechQueue(callbacks?: {
+  voice?: string;
+  onStart?: () => void;
+  onEnd?: () => void;
+}): StreamingSpeechQueue {
+  if (typeof window === 'undefined') {
+    return { push: () => {}, finish: () => callbacks?.onEnd?.(), cancel: () => {} };
+  }
+
+  stopSpeechOutput();
+  const myId = ++activeSpeechId;
+  const voice = callbacks?.voice || 'sabrina';
+
+  let rawBuffer = '';
+  let finished = false;
+  let started = false;
+  let draining = false;
+  const queue: Array<{ sentence: string; audioPromise: Promise<ArrayBuffer | null> }> = [];
+
+  const drainQueue = async () => {
+    if (draining) return;
+    draining = true;
+
+    while (queue.length > 0) {
+      if (activeSpeechId !== myId) {
+        draining = false;
+        return;
+      }
+      const nextItem = queue.shift()!;
+      const buf = await nextItem.audioPromise;
+      if (activeSpeechId !== myId) {
+        draining = false;
+        return;
+      }
+      if (!started) {
+        started = true;
+        callbacks?.onStart?.();
+      }
+      await playSentenceAudioBuffer(buf, nextItem.sentence, myId);
+    }
+
+    draining = false;
+    if (finished && queue.length === 0 && activeSpeechId === myId) {
+      callbacks?.onEnd?.();
+    }
+  };
+
+  const enqueueSentence = (rawSegment: string) => {
+    const cleaned = cleanMarkdownForSpeech(rawSegment);
+    if (!cleaned || activeSpeechId !== myId) return;
+    const audioPromise = fetchTtsSentenceBuffer(cleaned, voice, myId);
+    queue.push({ sentence: cleaned, audioPromise });
+    void drainQueue();
+  };
+
+  const flushCompleteSentences = () => {
+    // Keep code blocks buffered until closed so we don't speak raw code mid-stream
+    const openFences = (rawBuffer.match(/```/g) || []).length;
+    if (openFences % 2 === 1) return;
+
+    while (true) {
+      const match = rawBuffer.match(/^([\s\S]*?(?:[.!?](?:\s+|\n+)|\n{2,}))([\s\S]*)$/);
+      if (match) {
+        const segment = match[1];
+        rawBuffer = match[2];
+        if (segment.trim().length >= 8) {
+          enqueueSentence(segment);
+          continue;
+        } else {
+          rawBuffer = segment + rawBuffer;
+          break;
+        }
+      }
+
+      if (rawBuffer.length >= 220) {
+        const splitAt = rawBuffer.lastIndexOf(' ', 200);
+        if (splitAt > 40) {
+          const segment = rawBuffer.slice(0, splitAt);
+          rawBuffer = rawBuffer.slice(splitAt + 1);
+          enqueueSentence(segment);
+          continue;
+        }
+      }
+      break;
+    }
+  };
+
+  return {
+    push: (chunk: string) => {
+      if (!chunk || activeSpeechId !== myId) return;
+      rawBuffer += chunk;
+      flushCompleteSentences();
+    },
+    finish: () => {
+      if (activeSpeechId !== myId) return;
+      finished = true;
+      if (rawBuffer.trim()) {
+        const tail = rawBuffer;
+        rawBuffer = '';
+        enqueueSentence(tail);
+      } else if (!draining && queue.length === 0) {
+        callbacks?.onEnd?.();
+      }
+    },
+    cancel: () => {
+      if (activeSpeechId === myId) {
+        stopSpeechOutput();
+      }
+    },
+  };
+}
