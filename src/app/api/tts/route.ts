@@ -8,6 +8,8 @@ export const dynamic = 'force-dynamic';
 const HEYGEN_FREE_MODEL = 'heygen/heygen-voice-1-turbo:free';
 const HEYGEN_PAID_MODEL = 'heygen/heygen-voice-1-turbo';
 const DEFAULT_HEYGEN_VOICE = 'sabrina';
+const DEFAULT_FISH_VOICE_ID = '5bac2db6b75b400d9a0f2c257a6da812';
+const DEFAULT_FISH_MODEL = 's2.1-pro-free';
 let freeCooldownUntil = 0;
 
 function wrapPcmInWavHeader(
@@ -43,19 +45,68 @@ export async function POST(req: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const apiKey = (process.env.OPENROUTER_API_KEY || '').trim();
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OPENROUTER_API_KEY is not configured on the server.' },
-        { status: 500 }
-      );
-    }
 
     const { text, voice } = await req.json();
     const cleanedText = String(text || '').trim().slice(0, 2000);
 
     if (!cleanedText) {
       return NextResponse.json({ error: 'Missing text for TTS.' }, { status: 400 });
+    }
+
+    // 1. Primary: Fish Audio TTS if FISH_AUDIO_API_KEY is configured with a real key
+    const fishApiKey = (process.env.FISH_AUDIO_API_KEY || '').trim();
+    const hasRealFishKey =
+      Boolean(fishApiKey) &&
+      fishApiKey !== 'your_newly_regenerated_fish_key_here' &&
+      !fishApiKey.startsWith('your_');
+
+    if (hasRealFishKey) {
+      const fishVoiceId = (process.env.FISH_AUDIO_VOICE_ID || DEFAULT_FISH_VOICE_ID).trim();
+      const fishModel = (process.env.FISH_AUDIO_MODEL || DEFAULT_FISH_MODEL).trim();
+
+      try {
+        const fishRes = await fetch('https://api.fish.audio/v1/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${fishApiKey}`,
+            model: fishModel,
+          },
+          body: JSON.stringify({
+            text: cleanedText,
+            reference_id: fishVoiceId,
+            format: 'mp3',
+            mp3_bitrate: 128,
+          }),
+        });
+
+        if (fishRes.ok) {
+          const fishBuf = Buffer.from(await fishRes.arrayBuffer());
+          return new Response(new Uint8Array(fishBuf), {
+            headers: {
+              'Content-Type': fishRes.headers.get('content-type') || 'audio/mpeg',
+              'Cache-Control': 'no-store',
+            },
+          });
+        } else {
+          const fishErr = await fishRes.text().catch(() => '');
+          console.warn(
+            `[POST /api/tts] Fish Audio (${fishModel}) returned ${fishRes.status}:`,
+            fishErr.slice(0, 200)
+          );
+        }
+      } catch (fishFetchErr) {
+        console.warn('[POST /api/tts] Fish Audio request failed, falling back to OpenRouter:', fishFetchErr);
+      }
+    }
+
+    // 2. Fallback: OpenRouter HeyGen TTS
+    const apiKey = (process.env.OPENROUTER_API_KEY || '').trim();
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Neither FISH_AUDIO_API_KEY nor OPENROUTER_API_KEY is configured on the server.' },
+        { status: 500 }
+      );
     }
 
     const chosenVoice =
