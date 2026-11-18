@@ -153,19 +153,20 @@ export function Sidebar() {
       >
         <div className="w-[260px] h-full flex flex-col">
         {/* Top Action Bar */}
-        <div className="p-3 border-b border-[#1E3A8A]/15 dark:border-[#93C5FD]/15 flex items-center justify-between gap-2">
+        <div className="h-[52px] px-3 border-b border-[#1E3A8A]/15 dark:border-[#93C5FD]/15 flex items-center justify-between gap-2 shrink-0">
           <button
             onClick={handleNewChat}
-            className="flex-1 flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-gradient-to-r from-[#2563EB] to-[#1E3A8A] hover:from-[#1D4ED8] hover:to-[#1E3A8A] text-white text-xs font-semibold shadow-md shadow-blue-600/20 border border-[#93C5FD]/25 transition-all active:scale-[0.98]"
+            className="flex-1 flex items-center justify-center gap-2 h-8 px-3 rounded-xl bg-gradient-to-r from-[#2563EB] to-[#1E3A8A] hover:from-[#1D4ED8] hover:to-[#1E3A8A] text-white text-xs font-semibold shadow-md shadow-blue-600/20 border border-[#93C5FD]/25 transition-all active:scale-[0.98]"
           >
-            <Plus className="w-4 h-4 text-white" />
+            <Plus className="w-3.5 h-3.5 text-white" />
             <span>New chat</span>
           </button>
 
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Collapse sidebar"
-            className="p-2 rounded-lg text-[var(--j-text-muted)] hover:text-[var(--j-text)] hover:bg-[var(--j-surface-alt)] transition-colors"
+            title="Collapse sidebar"
+            className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-[var(--j-text-muted)] hover:text-[var(--j-text)] hover:bg-[var(--j-surface-alt)] transition-colors shrink-0"
           >
             <PanelLeftClose className="w-4 h-4" />
           </button>
