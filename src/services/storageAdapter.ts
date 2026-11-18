@@ -158,12 +158,12 @@ export const storageAdapter = {
   },
 
   loadAutoSpeak(): boolean {
-    if (!isClient()) return true;
+    if (!isClient()) return false;
     try {
       const val = localStorage.getItem(STORAGE_KEYS.AUTO_SPEAK);
-      return val === null ? true : val === 'true';
+      return val === 'true';
     } catch {
-      return true;
+      return false;
     }
   },
 

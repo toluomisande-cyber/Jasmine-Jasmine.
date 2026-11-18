@@ -310,10 +310,24 @@ export function useJustinaVoice(active: boolean) {
         ].filter(Boolean);
         const memoryBits = storeState.memories.map((m) => `- ${m}`);
 
+        const now = new Date();
+        const clientTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        const clientLocalTime = now.toLocaleString('en-US', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+          timeZoneName: 'short',
+        });
+
         const systemInstruction = [
           'You are Jasmine, a warm, lively, natural female personal assistant on a real-time spoken voice call.',
+          `Current local date & time (authoritative): ${clientLocalTime} (Timezone: ${clientTimeZone}, ISO: ${now.toISOString()}). Always use this for today, dates, times, and calendar scheduling.`,
           'Speak naturally and concisely (1 to 3 spoken sentences) like a sharp, friendly human.',
-          'You have live tools: google_search, browse_url, search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task, save_memory, and search_memory.',
+          'You have live tools: google_search, search_images, generate_image, browse_url, search_gmail, prepare_email, list_calendar_events, create_calendar_event, search_drive_files, list_tasks, create_task, save_memory, search_memory, and schedule_or_send_notification.',
           'Whenever the user shares personal facts or preferences, call save_memory automatically.',
           profileBits.length ? `User profile:\n${profileBits.join('\n')}` : '',
           memoryBits.length ? `Remembered facts:\n${memoryBits.join('\n')}` : '',
@@ -383,6 +397,10 @@ export function useJustinaVoice(active: boolean) {
                       return next;
                     });
                   }
+                }
+
+                if (msg.serverContent?.turnComplete) {
+                  turnRoleRef.current = null;
                 }
 
                 // Incoming 24kHz native audio chunks
@@ -489,6 +507,25 @@ export function useJustinaVoice(active: boolean) {
           return;
         }
         sessionRef.current = session;
+
+        // Immediately greet the user so the seamless voice session starts talking right away
+        try {
+          session.sendClientContent({
+            turns: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: 'Greet the user warmly in one short natural spoken sentence as Jasmine and ask how you can help.',
+                  },
+                ],
+              },
+            ],
+            turnComplete: true,
+          });
+        } catch {
+          // ignore if session closed
+        }
 
         // 4. Stream 16kHz Int16 PCM mic audio into Gemini Live
         const processor = captureCtx.createScriptProcessor(2048, 1, 1);

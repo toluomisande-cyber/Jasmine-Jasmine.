@@ -28,7 +28,7 @@ export async function POST() {
     const expireTime = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const tokenRes = await ai.authTokens.create({
       config: {
-        uses: 1,
+        uses: 3,
         expireTime,
       },
     });

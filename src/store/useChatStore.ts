@@ -167,7 +167,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sidebarOpen: true,
   theme: 'light',
   voiceModeOpen: false,
-  autoSpeak: true,
+  autoSpeak: false,
   speakingMessageId: null,
   memories: [],
   profile: {

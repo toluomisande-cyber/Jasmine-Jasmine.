@@ -295,13 +295,14 @@ export function TopBar() {
             toggleAutoSpeak();
           }}
           aria-label={autoSpeak ? 'Mute auto-read responses' : 'Enable auto-read responses'}
-          className={`p-2 sm:p-1.5 rounded-lg border transition-colors ${autoSpeak
+          className={`inline-flex items-center gap-1.5 h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-medium transition-colors ${autoSpeak
             ? 'bg-[var(--j-surface-alt)] border-[var(--j-border-strong)] text-[var(--j-accent)]'
             : 'bg-[var(--j-surface)] hover:bg-[var(--j-surface-hover)] border-[var(--j-border)] text-[var(--j-text-muted)] hover:text-[var(--j-text)]'
             }`}
-          title={autoSpeak ? 'Auto-read aloud: On' : 'Auto-read aloud: Off'}
+          title={autoSpeak ? 'Chat voice replies: On (click to mute)' : 'Chat voice replies: Off (click to enable)'}
         >
-          {autoSpeak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          {autoSpeak ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          <span className="hidden lg:inline">{autoSpeak ? 'Voice On' : 'Voice Off'}</span>
         </button>
 
         <button
