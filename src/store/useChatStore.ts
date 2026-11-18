@@ -14,7 +14,12 @@ import {
 } from '../types/chat';
 import { storageAdapter } from '../services/storageAdapter';
 import { requestThreadTitle } from '../services/generateThreadTitle';
-import { speakTextAloud, stopSpeechOutput } from '../utils/speechOutput';
+import {
+  createStreamingSpeechQueue,
+  speakTextAloud,
+  stopSpeechOutput,
+  type StreamingSpeechQueue,
+} from '../utils/speechOutput';
 
 let activeAbortController: AbortController | null = null;
 let cloudSyncTimer: ReturnType<typeof setTimeout> | null = null;
@@ -769,6 +774,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     activeAbortController = new AbortController();
 
+    const speechQueueRef: { current: StreamingSpeechQueue | null } = { current: null };
+
     try {
       // Build contents array up to the user message
       const geminiContents = buildGeminiContents([...currentThreadMessages, userMessage]);
@@ -850,6 +857,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let firstChunkAt: number | null = null;
       let streamErrorMessage: string | null = null;
 
+      speechQueueRef.current =
+        get().autoSpeak && !get().voiceModeOpen && !options?.voiceMode
+          ? createStreamingSpeechQueue({
+              voice: 'sabrina',
+              onStart: () => set({ speakingMessageId: assistantMessageId }),
+              onEnd: () => {
+                if (get().speakingMessageId === assistantMessageId) {
+                  set({ speakingMessageId: null });
+                }
+              },
+            })
+          : null;
+
       const patchMessageMeta = (patch: Partial<Message>) => {
         const curr = get().messagesByThread[activeThreadId as string] || [];
         const next = curr.map((m) => (m.id === assistantMessageId ? { ...m, ...patch } : m));
@@ -896,6 +916,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             fullModelResponse += evt.text;
             get().appendStreamChunk(assistantMessageId, evt.text);
+            speechQueueRef.current?.push(evt.text);
           } else if (evt.type === 'thought_chunk' && typeof evt.text === 'string') {
             const currMsg = (get().messagesByThread[activeThreadId as string] || []).find(
               (m) => m.id === assistantMessageId
@@ -1013,13 +1034,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       get().finalizeMessage(assistantMessageId, 'complete');
 
-      if (get().autoSpeak && !get().voiceModeOpen) {
-        const latestMsgs = get().messagesByThread[activeThreadId] || [];
-        const completed = latestMsgs.find((m) => m.id === assistantMessageId);
-        if (completed?.content?.trim()) {
-          get().speakMessage(assistantMessageId, completed.content);
-        }
-      }
+      speechQueueRef.current?.finish();
 
       // Trigger automatic thread title generation if still pending and this is the first turn
       const currentThread = get().threads[activeThreadId];
@@ -1036,8 +1051,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
+        speechQueueRef.current?.cancel();
         get().finalizeMessage(assistantMessageId, 'stopped');
       } else {
+        speechQueueRef.current?.cancel();
         console.error('[useChatStore] Streaming error:', err);
         get().finalizeMessage(
           assistantMessageId,
@@ -1116,6 +1133,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
     activeAbortController = new AbortController();
 
+    const speechQueueRef: { current: StreamingSpeechQueue | null } = { current: null };
+
     try {
       // Build context up to the user message
       const contextMessages = messages.slice(0, precedingUserIdx + 1);
@@ -1155,6 +1174,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let streamErrorMessage: string | null = null;
       let hasText = false;
 
+      speechQueueRef.current =
+        get().autoSpeak && !get().voiceModeOpen
+          ? createStreamingSpeechQueue({
+              voice: 'sabrina',
+              onStart: () => set({ speakingMessageId: assistantMessageId }),
+              onEnd: () => {
+                if (get().speakingMessageId === assistantMessageId) {
+                  set({ speakingMessageId: null });
+                }
+              },
+            })
+          : null;
+
       const patchRegenMeta = (patch: Partial<Message>) => {
         const curr = get().messagesByThread[activeThreadId] || [];
         const next = curr.map((m) => (m.id === assistantMessageId ? { ...m, ...patch } : m));
@@ -1174,6 +1206,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (evt.type === 'chunk' && typeof evt.text === 'string') {
             hasText = true;
             get().appendStreamChunk(assistantMessageId, evt.text);
+            speechQueueRef.current?.push(evt.text);
           } else if (evt.type === 'tool_status') {
             patchRegenMeta({ toolStatus: evt.status || undefined });
           } else if (evt.type === 'sources' && Array.isArray(evt.sources)) {
@@ -1215,17 +1248,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       get().finalizeMessage(assistantMessageId, 'complete');
 
-      if (get().autoSpeak && !get().voiceModeOpen) {
-        const latestMsgs = get().messagesByThread[activeThreadId] || [];
-        const completed = latestMsgs.find((m) => m.id === assistantMessageId);
-        if (completed?.content?.trim()) {
-          get().speakMessage(assistantMessageId, completed.content);
-        }
-      }
+      speechQueueRef.current?.finish();
     } catch (err: any) {
       if (err.name === 'AbortError') {
+        speechQueueRef.current?.cancel();
         get().finalizeMessage(assistantMessageId, 'stopped');
       } else {
+        speechQueueRef.current?.cancel();
         console.error('[useChatStore] Regenerate streaming error:', err);
         get().finalizeMessage(
           assistantMessageId,
